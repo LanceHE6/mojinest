@@ -106,7 +106,20 @@ let loadTimer = null;
 function debouncedLoad() { clearTimeout(loadTimer); loadTimer = setTimeout(() => { state.offset = 0; load(); }, 220); }
 
 async function boot() {
-  try { await api('/auth/me'); showApp(); } catch { return; }
+  // Desktop client passes ?token= / #token= so the UI can bootstrap a session.
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const boot = hash.get('token') || new URLSearchParams(location.search).get('token');
+  if (boot) {
+    localStorage.setItem('mojinest_token', boot);
+    history.replaceState(null, '', location.pathname);
+    try {
+      await fetch('/api/auth/login', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ token: boot }),
+      });
+    } catch (e) { /* fall through to the normal auth check */ }
+  }
+  try { await api('/auth/me'); showApp(); } catch { showLogin(); return; }
   await load(); await loadTags(); await loadStats();
 }
 

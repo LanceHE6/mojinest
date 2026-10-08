@@ -1,4 +1,6 @@
 /mojinest
+/mojinest-desktop
+/dist/
 /data/
 /.env
 *.db

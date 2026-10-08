@@ -99,23 +99,68 @@ docker compose up -d --build
 ## 路线图
 
 - [x] v0.1 服务端核心：上传去重、标签/分组/搜索、AI 标注流水线、本地 + S3 双存储、Web 库
-- [ ] v0.2 桌面客户端：托盘 + 全局快捷键呼出 + 搜索即复制（Tauri 或 Go+WebView）
+- [x] v0.2 桌面客户端：全局快捷键呼出选图窗口、按关键词一键复制、原生剪贴板（Win/mac/Linux）
 - [ ] v0.3 导入器：QQNT（PC）、微信 PC 解密提取、Android QQ 收藏目录
 - [ ] v0.4 手机端体验：上传/分享目标、iOS 快捷指令、局域网直连
 - [ ] v0.5 多用户与共享库、按用户隔离配额
 - [ ] v0.6 语义检索（向量）与以图搜图
 
+## 桌面客户端（v0.2）
+
+单文件、无运行时依赖（Windows 是 exe，Linux/macOS 直接是二进制）。
+
+```bash
+make desktop                 # 产出 ./mojinest-desktop
+make release                 # dist/ 下三平台产物 + 服务端
+./mojinest-desktop init      # 生成配置，会打印平台相关的快捷键设置指引
+./mojinest-desktop check     # 自检：服务端/令牌/快捷键/剪贴板工具/浏览器
+./mojinest-desktop run       # 常驻并注册全局快捷键（Windows、macOS）
+./mojinest-desktop pick      # 打开选图窗口（给系统快捷键调用）
+./mojinest-desktop copy 猫    # 直接按关键词复制第一张进剪贴板
+```
+
+配置文件 `~/.config/mojinest/desktop.json`：
+
+| 字段 | 说明 |
+| --- | --- |
+| `server_url` | 服务端地址，如 `http://192.168.1.4:18642` |
+| `token` | 服务端访问令牌（客户端自动登入选图窗口） |
+| `hotkey` | 快捷键，如 `Ctrl+Alt+M` |
+| `window_mode` | `app`（无边框应用窗口，默认）或 `browser`（普通标签页） |
+| `browser` | 指定浏览器可执行文件（留空自动探测 Chrome/Chromium/Edge） |
+| `auto_paste` | 复制后是否自动发一次 Ctrl+V（默认关） |
+| `paste_delay_ms` | 自动粘贴前的等待毫秒数（默认 250） |
+
+各平台怎么用：
+
+- **Windows**：`mojinest-desktop.exe run` 常驻即可，客户端自己注册 `Ctrl+Alt+M`。
+  开机自启 = 把 exe 的快捷方式（参数 `run`）放进 `shell:startup`。
+  剪贴板与自动粘贴走系统 PowerShell + .NET，无需额外装东西。
+- **Linux (X11)**：程序不去抢全局键（不可靠且会被 WM 打断）。在桌面环境的
+  键盘设置里加一条自定义快捷键，命令写 `mojinest-desktop pick`。
+  剪贴板需要 `xclip`（图片）或 `xsel`；自动粘贴需要 `xdotool`。
+  也可以干脆绑 `mojinest-desktop copy 猫` 之类——按下就是一键发常驻表情。
+- **macOS**：`run` 需要在「隐私与安全性 → 辅助功能」里授权才能注册全局键。
+  剪贴板与自动粘贴用 `osascript`，无需额外安装。
+- **Wayland**：同 Linux 思路，绑自定义快捷键到 `pick`；剪贴板用 `wl-clipboard`。
+
+选图窗口是内置网页版（token 走 URL fragment，不落服务端日志）；点图即复制。
+网页版在 http（局域网）下浏览器会拒绝写剪贴板，此时要用桌面客户端的
+`copy`/`pick`，或点一次后按提示改用下载。
+
 ## 目录结构
 
 ```
-cmd/mojinest/        入口
-internal/api/        HTTP 接口、鉴权、限流
-internal/repo/       所有 SQL（SQLite）
-internal/store/      blob 存储抽象：local / s3
-internal/imageutil/  格式嗅探、元数据、缩略图（pure Go）
-internal/tagger/     OpenAI 兼容视觉模型客户端
-internal/worker/     AI 标注任务队列
-internal/webui/      内嵌前端（dist/index.html）
+cmd/mojinest/          服务端入口
+cmd/mojinest-desktop/  桌面客户端入口（init/pick/copy/run/check）
+internal/api/          HTTP 接口、鉴权、限流
+internal/desktop/      桌面客户端：配置、API 客户端、剪贴板、选图窗口、全局快捷键
+internal/repo/         所有 SQL（SQLite）
+internal/store/        blob 存储抽象：local / s3
+internal/imageutil/    格式嗅探、元数据、缩略图（pure Go）
+internal/tagger/       OpenAI 兼容视觉模型客户端
+internal/worker/       AI 标注任务队列
+internal/webui/        内嵌前端（dist/index.html）
 ```
 
 细节设计见 [docs/DESIGN.md](docs/DESIGN.md)。
