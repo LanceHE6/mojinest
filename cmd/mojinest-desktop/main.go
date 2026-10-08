@@ -9,6 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -51,6 +52,80 @@ const usage = `Mojinest 桌面客户端
 // version is stamped at build time with -ldflags "-X main.version=...".
 var version = "0.2.0"
 
+// parseArgs splits argv into the subcommand and its flags.
+//
+// Go's flag package stops at the first positional argument, so
+// `mojinest-desktop relay -port-file x` would silently ignore -port-file.
+// Both orders are common (a hotkey binding writes `pick -config …`, a human
+// types `-config … pick`), so the subcommand is located first and the flag set
+// is parsed from everything else.
+func parseArgs(fs *flag.FlagSet, argv []string) error {
+	sub := ""
+	rest := make([]string, 0, len(argv))
+	expectValue := false
+	for _, a := range argv {
+		if expectValue {
+			rest = append(rest, a)
+			expectValue = false
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			rest = append(rest, a)
+			name := strings.TrimLeft(a, "-")
+			if !strings.Contains(name, "=") && flagNeedsValue(fs, name) {
+				expectValue = true
+			}
+			continue
+		}
+		if sub == "" {
+			sub = a
+			continue
+		}
+		rest = append(rest, a)
+	}
+	if err := fs.Parse(rest); err != nil {
+		return err
+	}
+	if sub != "" {
+		// Put the subcommand back as the first positional argument.
+		return fs.Parse(append([]string{sub}, fs.Args()...))
+	}
+	return nil
+}
+
+// flagNeedsValue reports whether a flag takes a separate value argument.
+func flagNeedsValue(fs *flag.FlagSet, name string) bool {
+	f := fs.Lookup(name)
+	if f == nil {
+		return false
+	}
+	if bf, ok := f.Value.(interface{ IsBoolFlag() bool }); ok && bf.IsBoolFlag() {
+		return false
+	}
+	return true
+}
+
+// loadWithOverrides reads the config and applies CLI overrides.
+func loadWithOverrides(cfgPath, server, token, hotkey, browser string) (*desktop.Config, error) {
+	cfg, err := desktop.Load(cfgPath)
+	if err != nil {
+		return nil, err
+	}
+	if server != "" {
+		cfg.ServerURL = server
+	}
+	if token != "" {
+		cfg.Token = token
+	}
+	if hotkey != "" {
+		cfg.Hotkey = hotkey
+	}
+	if browser != "" {
+		cfg.Browser = browser
+	}
+	return cfg, nil
+}
+
 func main() {
 	os.Exit(run(os.Args[1:]))
 }
@@ -63,11 +138,12 @@ func run(argv []string) int {
 	token := fs.String("token", "", "覆盖访问令牌")
 	hotkey := fs.String("hotkey", "", "覆盖全局快捷键")
 	browser := fs.String("browser", "", "覆盖浏览器可执行文件")
+	portFile := fs.String("port-file", "", "本地转发端口记录文件（内部使用）")
 	quiet := fs.Bool("quiet", false, "只输出错误")
 	showVersion := fs.Bool("version", false, "打印版本")
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 
-	if err := fs.Parse(argv); err != nil {
+	if err := parseArgs(fs, argv); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			fmt.Print(usage)
 			return 0
@@ -88,6 +164,20 @@ func run(argv []string) int {
 	cmd := fs.Arg(0)
 	args := fs.Args()[1:]
 
+	// `relay` is a hidden helper spawned by `pick`; it must run before the
+	// logging/flag plumbing below so it can stay quiet and fully detached.
+	if cmd == "relay" {
+		cfg, err := loadWithOverrides(*cfgPath, *server, *token, *hotkey, *browser)
+		if err != nil {
+			return 1
+		}
+		relayLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+		if *quiet {
+			relayLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
+		}
+		return runRelay(context.Background(), cfg, *portFile, relayLogger)
+	}
+
 	level := slog.LevelInfo
 	if *quiet {
 		level = slog.LevelError
@@ -99,23 +189,11 @@ func run(argv []string) int {
 		return 0
 	}
 
-	cfg, err := desktop.Load(*cfgPath)
+	cfg, err := loadWithOverrides(*cfgPath, *server, *token, *hotkey, *browser)
 	if err != nil {
 		logger.Error("读取配置失败", "err", err, "path", *cfgPath)
 		desktop.Notify("Mojinest 配置读取失败", fmt.Sprintf("%v\n\n配置文件：%s", err, *cfgPath), true)
 		return 1
-	}
-	if *server != "" {
-		cfg.ServerURL = *server
-	}
-	if *token != "" {
-		cfg.Token = *token
-	}
-	if *hotkey != "" {
-		cfg.Hotkey = *hotkey
-	}
-	if *browser != "" {
-		cfg.Browser = *browser
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -136,6 +214,12 @@ func run(argv []string) int {
 	case "pick", "open":
 		if err := picker.WaitServer(ctx, client, 5*time.Second); err != nil {
 			logger.Warn("服务端不可达，仍然打开窗口", "err", err)
+		}
+		// On a LAN over plain http the browser refuses clipboard writes; a
+		// loopback relay gives the page a secure context so the copy button
+		// works. ensureRelay starts (or reuses) that relay.
+		if base := ensureRelay(ctx, selfPath(), *cfgPath, cfg, logger); base != "" {
+			picker = picker.WithBase(base)
 		}
 		if err := picker.Open(ctx); err != nil {
 			logger.Error("打开选图窗口失败", "err", err)
@@ -288,6 +372,19 @@ func runDaemon(ctx context.Context, cfg *desktop.Config, client *desktop.Client,
 		}
 	}
 
+	// On a LAN over plain http the browser refuses clipboard writes, so the
+	// window is served from a loopback relay instead: 127.0.0.1 counts as a
+	// secure context. This is what makes "press hotkey → click sticker → paste"
+	// actually work end to end.
+	relay, err := desktop.StartRelay(ctx, cfg, logger)
+	if err != nil {
+		logger.Warn("本地转发启动失败，剪贴板复制可能不可用", "err", err)
+	}
+	if relay != nil {
+		defer relay.Close()
+		picker = picker.WithBase(relay.BaseURL())
+	}
+
 	hotkeyErr := make(chan error, 1)
 	go func() { hotkeyErr <- desktop.ListenHotkey(ctx, hk, press) }()
 
@@ -426,6 +523,16 @@ func safePrefix(s string) string {
 		return s[:8]
 	}
 	return s
+}
+
+// selfPath is the absolute path of the running binary, used to spawn helpers
+// (the relay) detached from this process.
+func selfPath() string {
+	p, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return p
 }
 
 func randomToken() (string, error) {

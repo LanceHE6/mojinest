@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,6 +20,10 @@ import (
 type Picker struct {
 	cfg *Config
 	log *slog.Logger
+	// BaseOverride, when set, replaces the server URL in the window. It is used
+	// to point the window at a loopback relay so the page counts as a secure
+	// context and the copy button actually works (see Forwarder).
+	BaseOverride string
 }
 
 // NewPicker builds a picker for the given config.
@@ -28,15 +34,30 @@ func NewPicker(cfg *Config, logger *slog.Logger) *Picker {
 	return &Picker{cfg: cfg, log: logger}
 }
 
+// WithBase returns a copy of the picker that opens base instead of the
+// configured server address.
+func (p *Picker) WithBase(base string) *Picker {
+	cp := *p
+	cp.BaseOverride = strings.TrimRight(base, "/")
+	return &cp
+}
+
 // AuthedURL returns the UI URL with the token attached so the web app can
 // bootstrap its session without a manual login. The token travels in the
 // fragment (#), which never reaches the server as part of the request line.
 func (p *Picker) AuthedURL() string {
-	base := p.cfg.Normalized() + "/"
+	base := p.base() + "/"
 	if p.cfg.Token == "" {
 		return base
 	}
 	return base + "#token=" + p.cfg.Token
+}
+
+func (p *Picker) base() string {
+	if p.BaseOverride != "" {
+		return strings.TrimRight(p.BaseOverride, "/")
+	}
+	return p.cfg.Normalized()
 }
 
 // Open launches the picker window (app-style when the browser supports it).
@@ -168,6 +189,71 @@ func launchDetached(bin string, args []string) error {
 	// Reap the child in the background; it lives on in its own session.
 	go func() { _ = cmd.Wait() }()
 	return nil
+}
+
+// NeedsLoopbackRelay reports whether the picker should go through a loopback
+// relay. Browsers only treat "potentially trustworthy origins" as secure, and
+// http on a LAN address is not one — so the web UI's clipboard button silently
+// fails there. Serving the same bytes on 127.0.0.1 makes it work.
+func (c *Config) NeedsLoopbackRelay() bool {
+	host, err := HostPortFromURL(c.Normalized())
+	if err != nil {
+		return false
+	}
+	h, _, err := net.SplitHostPort(host)
+	if err != nil {
+		return false
+	}
+	// Already loopback (or https, which is a secure context anywhere): nothing
+	// to fix.
+	if strings.HasPrefix(c.Normalized(), "https://") {
+		return false
+	}
+	if h == "127.0.0.1" || h == "localhost" || h == "::1" || h == "[::1]" {
+		return false
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback() == false
+}
+
+// StartRelay brings up the loopback relay for this config, recording its port
+// so later CLI invocations can reuse it. Returns the base URL to open, or ""
+// when no relay is needed.
+func StartRelay(ctx context.Context, cfg *Config, logger *slog.Logger) (*Forwarder, error) {
+	if !cfg.NeedsLoopbackRelay() {
+		return nil, nil
+	}
+	remote, err := HostPortFromURL(cfg.Normalized())
+	if err != nil {
+		return nil, err
+	}
+	f := NewForwarder(remote, 30*time.Minute, logger)
+	if err := f.Start(); err != nil {
+		return nil, err
+	}
+	if err := WritePortFile(PortFilePath(), f.Port()); err != nil {
+		logger.Warn("无法记录转发端口", "err", err)
+	}
+	logger.Info("已启用本地转发（让浏览器允许写剪贴板）",
+		"local", f.BaseURL(), "remote", remote)
+	go func() {
+		if err := f.Serve(ctx); err != nil && ctx.Err() == nil {
+			logger.Warn("本地转发结束", "err", err)
+		}
+	}()
+	return f, nil
+}
+
+// ReuseRelay looks for a relay started by an earlier invocation.
+func ReuseRelay(cfg *Config) string {
+	if !cfg.NeedsLoopbackRelay() {
+		return ""
+	}
+	port := ReadPortFile(PortFilePath())
+	if port == 0 || !PingForwarder(port, 300*time.Millisecond) {
+		return ""
+	}
+	return "http://127.0.0.1:" + strconv.Itoa(port)
 }
 
 // WaitServer blocks until the server answers (or the timeout expires).
