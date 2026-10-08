@@ -112,12 +112,19 @@ docker compose up -d --build
 ```bash
 make desktop                 # 产出 ./mojinest-desktop
 make release                 # dist/ 下三平台产物 + 服务端
-./mojinest-desktop init      # 生成配置，会打印平台相关的快捷键设置指引
+./mojinest-desktop setup     # 首次配置：写配置 + 体检 + 平台指引
 ./mojinest-desktop check     # 自检：服务端/令牌/快捷键/剪贴板工具/浏览器
 ./mojinest-desktop run       # 常驻并注册全局快捷键（Windows、macOS）
 ./mojinest-desktop pick      # 打开选图窗口（给系统快捷键调用）
 ./mojinest-desktop copy 猫    # 直接按关键词复制第一张进剪贴板
+./mojinest-desktop config    # 打印当前配置（令牌打码）
+./mojinest-desktop help      # 完整用法
 ```
+
+**直接双击 exe 会发生什么**：Windows 上弹一个三选一的小面板
+（「是」打开表情库 /「否」看怎么常驻运行 /「取消」什么都不做），
+不会擅自弹浏览器窗口；其他平台打印用法。这不是装饰 —— 早期版本不带参数
+会直接执行 `pick`，双击 exe 就莫名开出一个网页窗口，属于设计失误。
 
 配置文件 `~/.config/mojinest/desktop.json`：
 

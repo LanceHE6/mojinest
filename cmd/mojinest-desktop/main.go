@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,58 +24,86 @@ import (
 const usage = `Mojinest 桌面客户端
 
 用法:
-  mojinest-desktop init            生成配置（含默认快捷键）
-  mojinest-desktop pick            打开选图窗口（供快捷键调用）
-  mojinest-desktop copy [关键词...]  直接按关键词复制第一张（可配合快捷键）
-  mojinest-desktop run             后台常驻：注册全局快捷键
-  mojinest-desktop check           自检：服务端连通性、快捷键、剪贴板工具
-  mojinest-desktop config          打印当前配置路径与内容
+  mojinest-desktop [选项] <子命令> [参数]
 
-常用参数:
-  -config <path>   配置文件（默认 ~/.config/mojinest/desktop.json）
-  -server <url>    覆盖服务端地址
-  -token <token>   覆盖访问令牌
-  -hotkey <keys>   覆盖快捷键，例如 Ctrl+Alt+M
-  -quiet           不打印日志
+子命令:
+  setup             首次配置（写配置 + 体检 + 平台指引）
+  pick              打开选图窗口（供系统快捷键调用）
+  copy [关键词...]   直接按关键词复制第一张进剪贴板
+  run               常驻并注册全局快捷键（Windows / macOS）
+  check             自检：服务端、令牌、快捷键、剪贴板工具、浏览器
+  config            打印当前配置
+  help              显示本帮助
+
+选项:
+  -config <path>    配置文件（默认 ~/.config/mojinest/desktop.json）
+  -server <url>     覆盖服务端地址，例如 http://192.168.1.4:18642
+  -token <token>    覆盖访问令牌
+  -hotkey <keys>    覆盖快捷键，例如 Ctrl+Alt+M
+  -browser <path>   覆盖浏览器可执行文件
+  -quiet            只输出错误
+  -version          打印版本
+
+不带子命令时（例如直接双击 exe）：Windows 弹出一个三选一的小面板，
+不会擅自打开浏览器窗口；其他平台打印本帮助。
 `
 
+// version is stamped at build time with -ldflags "-X main.version=...".
+var version = "0.2.0"
+
 func main() {
+	os.Exit(run(os.Args[1:]))
+}
+
+func run(argv []string) int {
 	fs := flag.NewFlagSet("mojinest-desktop", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
 	cfgPath := fs.String("config", desktop.DefaultPath(), "配置文件路径")
 	server := fs.String("server", "", "覆盖服务端地址")
 	token := fs.String("token", "", "覆盖访问令牌")
 	hotkey := fs.String("hotkey", "", "覆盖全局快捷键")
-	quiet := fs.Bool("quiet", false, "不打印日志")
-	top := fs.Int("limit", 0, "copy 子命令的结果条数")
-	fs.Usage = func() { fmt.Print(usage) }
-	if err := fs.Parse(os.Args[1:]); err != nil {
-		os.Exit(2)
+	browser := fs.String("browser", "", "覆盖浏览器可执行文件")
+	quiet := fs.Bool("quiet", false, "只输出错误")
+	showVersion := fs.Bool("version", false, "打印版本")
+	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
+
+	if err := fs.Parse(argv); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			fmt.Print(usage)
+			return 0
+		}
+		return 2
+	}
+	if *showVersion {
+		fmt.Printf("mojinest-desktop %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
+		return 0
 	}
 
-	cmd := "pick"
-	if fs.NArg() > 0 {
-		cmd = fs.Arg(0)
-	}
-	args := []string{}
-	if fs.NArg() > 1 {
-		args = fs.Args()[1:]
+	// No subcommand: never silently pop a window. Double-clicking the exe used
+	// to open a browser tab, which surprised the user; show a menu instead.
+	if fs.NArg() == 0 {
+		return controlPanel(*cfgPath)
 	}
 
-	logLevel := slog.LevelInfo
+	cmd := fs.Arg(0)
+	args := fs.Args()[1:]
+
+	level := slog.LevelInfo
 	if *quiet {
-		logLevel = slog.LevelError
+		level = slog.LevelError
 	}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 
 	if cmd == "help" || cmd == "-h" || cmd == "--help" {
 		fmt.Print(usage)
-		return
+		return 0
 	}
 
 	cfg, err := desktop.Load(*cfgPath)
 	if err != nil {
 		logger.Error("读取配置失败", "err", err, "path", *cfgPath)
-		os.Exit(1)
+		desktop.Notify("Mojinest 配置读取失败", fmt.Sprintf("%v\n\n配置文件：%s", err, *cfgPath), true)
+		return 1
 	}
 	if *server != "" {
 		cfg.ServerURL = *server
@@ -84,6 +114,9 @@ func main() {
 	if *hotkey != "" {
 		cfg.Hotkey = *hotkey
 	}
+	if *browser != "" {
+		cfg.Browser = *browser
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -93,24 +126,12 @@ func main() {
 	picker := desktop.NewPicker(cfg, logger)
 
 	switch cmd {
-	case "init":
-		if cfg.Token == "" {
-			logger.Warn("还没配置 Token：编辑配置文件或加 -token 参数")
-		}
-		if err := cfg.Save(*cfgPath); err != nil {
-			logger.Error("写入配置失败", "err", err)
-			os.Exit(1)
-		}
-		fmt.Printf("配置已写入 %s\n", *cfgPath)
-		fmt.Printf("  服务端: %s\n  快捷键: %s\n", cfg.Normalized(), cfg.Hotkey)
-		for _, line := range desktop.HotkeyInstructions(cfg.Hotkey) {
-			fmt.Println("  " + line)
-		}
+	case "setup", "init":
+		return doSetup(ctx, cfg, client, *cfgPath, logger)
 
 	case "config":
-		fmt.Printf("配置文件: %s\n", *cfgPath)
-		fmt.Printf("  服务端: %s\n  快捷键: %s\n  窗口模式: %s\n  自动粘贴: %v\n  Token: %s\n",
-			cfg.Normalized(), cfg.Hotkey, cfg.WindowMode, cfg.AutoPaste, mask(cfg.Token))
+		printConfig(cfg, *cfgPath)
+		return 0
 
 	case "pick", "open":
 		if err := picker.WaitServer(ctx, client, 5*time.Second); err != nil {
@@ -118,36 +139,100 @@ func main() {
 		}
 		if err := picker.Open(ctx); err != nil {
 			logger.Error("打开选图窗口失败", "err", err)
-			os.Exit(1)
+			desktop.Notify("Mojinest 打不开选图窗口", err.Error(), true)
+			return 1
 		}
+		return 0
 
 	case "copy":
 		query := strings.TrimSpace(strings.Join(args, " "))
-		if err := copyBest(ctx, client, clip, query, *top); err != nil {
+		if err := copyBest(ctx, client, clip, query); err != nil {
 			logger.Error("复制失败", "err", err)
-			os.Exit(1)
+			if !*quiet {
+				desktop.Notify("Mojinest 复制失败", err.Error(), true)
+			}
+			return 1
 		}
+		return 0
 
-	case "run",
-		"daemon":
-		if err := runDaemon(ctx, cfg, client, clip, picker, logger); err != nil {
+	case "run", "daemon":
+		if err := runDaemon(ctx, cfg, client, picker, logger); err != nil {
 			logger.Error("运行失败", "err", err)
-			os.Exit(1)
+			desktop.Notify("Mojinest 启动失败", err.Error(), true)
+			return 1
 		}
+		return 0
 
 	case "check":
-		os.Exit(selfCheck(ctx, cfg, client, logger))
+		return selfCheck(ctx, cfg, client, logger)
 
 	default:
 		fmt.Fprintf(os.Stderr, "未知子命令 %q\n\n%s", cmd, usage)
-		os.Exit(2)
+		return 2
 	}
 }
 
+// doSetup writes the config, runs the health check and prints platform advice.
+func doSetup(ctx context.Context, cfg *desktop.Config, client *desktop.Client, cfgPath string, logger *slog.Logger) int {
+	_, statErr := os.Stat(cfgPath)
+	created := os.IsNotExist(statErr)
+	if cfg.Token == "" {
+		tok, err := randomToken()
+		if err != nil {
+			logger.Error("生成令牌失败", "err", err)
+			return 1
+		}
+		cfg.Token = tok
+		logger.Warn("没有配置令牌，已生成一个占位值 —— 请改成服务端的 Token", "token", tok)
+	}
+	if err := cfg.Save(cfgPath); err != nil {
+		logger.Error("写入配置失败", "err", err)
+		return 1
+	}
+	action := "已更新"
+	if created {
+		action = "已创建"
+	}
+	fmt.Printf("%s配置文件：%s\n", action, cfgPath)
+	printConfig(cfg, cfgPath)
+	fmt.Println()
+	problems := selfCheck(ctx, cfg, client, logger)
+	fmt.Println()
+	fmt.Println("下一步：")
+	if desktop.HotkeySupported() {
+		fmt.Println("  1. 常驻运行：  mojinest-desktop run")
+		fmt.Println("  2. 开机自启：把本程序快捷方式放进 shell:startup，参数填 run")
+	} else {
+		for _, line := range desktop.HotkeyInstructions(cfg.Hotkey) {
+			fmt.Println("  " + line)
+		}
+	}
+	if problems > 0 {
+		return 1
+	}
+	return 0
+}
+
+func printConfig(cfg *desktop.Config, cfgPath string) {
+	fmt.Printf("配置文件: %s\n", cfgPath)
+	fmt.Printf("  服务端:   %s\n", cfg.Normalized())
+	fmt.Printf("  令牌:     %s\n", mask(cfg.Token))
+	fmt.Printf("  快捷键:   %s\n", cfg.Hotkey)
+	fmt.Printf("  窗口模式: %s\n", cfg.WindowMode)
+	fmt.Printf("  浏览器:   %s\n", orDefault(cfg.Browser, "(自动探测)"))
+	fmt.Printf("  自动粘贴: %v（延迟 %dms）\n", cfg.AutoPaste, cfg.PasteDelayMs)
+}
+
+func orDefault(s, d string) string {
+	if strings.TrimSpace(s) == "" {
+		return d
+	}
+	return s
+}
+
 // copyBest fetches the top match and puts it on the clipboard.
-func copyBest(ctx context.Context, c *desktop.Client, clip *desktop.Clipboard, query string, limit int) error {
-	q := desktop.SearchQuery{Q: query, Sort: "used"}
-	items, err := c.Search(ctx, q)
+func copyBest(ctx context.Context, c *desktop.Client, clip *desktop.Clipboard, query string) error {
+	items, err := c.Search(ctx, desktop.SearchQuery{Q: query, Sort: "used"})
 	if err != nil {
 		return err
 	}
@@ -155,8 +240,8 @@ func copyBest(ctx context.Context, c *desktop.Client, clip *desktop.Clipboard, q
 		if query == "" {
 			return errors.New("库还是空的：先用网页版或导入功能放几张图进去")
 		}
-		// Fall back to the newest match if nothing was used yet.
-		items, err = c.Search(ctx, desktop.SearchQuery{Q: query, Sort: "newest", Limit: limit})
+		// Nothing has been used yet: fall back to the newest match.
+		items, err = c.Search(ctx, desktop.SearchQuery{Q: query, Sort: "newest"})
 		if err != nil {
 			return err
 		}
@@ -171,7 +256,7 @@ func copyBest(ctx context.Context, c *desktop.Client, clip *desktop.Clipboard, q
 	}
 	if err := clip.CopyImage(it.MIME, data); err != nil {
 		// Last resort: leave the file on disk and tell the user where.
-		p, werr := desktop.SavePNG("", "mojinest-"+it.Sha256[:8]+"."+it.Ext, data)
+		p, werr := desktop.SavePNG("", "mojinest-"+safePrefix(it.Sha256)+"."+it.Ext, data)
 		if werr != nil {
 			return err
 		}
@@ -186,7 +271,7 @@ func copyBest(ctx context.Context, c *desktop.Client, clip *desktop.Clipboard, q
 	return nil
 }
 
-func runDaemon(ctx context.Context, cfg *desktop.Config, client *desktop.Client, clip *desktop.Clipboard, picker *desktop.Picker, logger *slog.Logger) error {
+func runDaemon(ctx context.Context, cfg *desktop.Config, client *desktop.Client, picker *desktop.Picker, logger *slog.Logger) error {
 	hk, err := desktop.ParseHotkey(cfg.Hotkey)
 	if err != nil {
 		return err
@@ -199,7 +284,7 @@ func runDaemon(ctx context.Context, cfg *desktop.Config, client *desktop.Client,
 	press := func() {
 		select {
 		case presses <- struct{}{}:
-		default: // already queued
+		default: // a press is already queued
 		}
 	}
 
@@ -217,7 +302,7 @@ func runDaemon(ctx context.Context, cfg *desktop.Config, client *desktop.Client,
 			if err != nil {
 				if errors.Is(err, desktop.ErrHotkeyUnsupported) {
 					// Linux/Wayland: the desktop environment owns the binding, so
-					// there is nothing to keep running.
+					// there is nothing for this process to keep doing.
 					for _, line := range desktop.HotkeyInstructions(cfg.Hotkey) {
 						logger.Info(line)
 					}
@@ -333,4 +418,20 @@ func short(s string) string {
 		return string(r[:24]) + "…"
 	}
 	return s
+}
+
+// safePrefix returns a short, always-valid prefix of a hex digest.
+func safePrefix(s string) string {
+	if len(s) >= 8 {
+		return s[:8]
+	}
+	return s
+}
+
+func randomToken() (string, error) {
+	buf := make([]byte, 24)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
