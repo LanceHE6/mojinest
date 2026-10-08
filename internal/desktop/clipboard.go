@@ -85,6 +85,24 @@ $img = [System.Drawing.Image]::FromStream([System.IO.File]::OpenRead($env:MOJI_F
 Write-Output 'ok'
 `
 
+// psCopyConfirmed reports whether the clipboard script really ran. PowerShell
+// exits 0 even when a stub (or an empty wrapper) does nothing, so "exit code
+// 0" is not proof — the script's own 'ok' marker is. Without this check the
+// client would cheerfully print "已复制" and the user would paste nothing.
+func psCopyConfirmed(out []byte) error {
+	if strings.Contains(strings.ToLower(string(out)), "ok") {
+		return nil
+	}
+	snippet := strings.TrimSpace(string(out))
+	if snippet == "" {
+		snippet = "(没有任何输出)"
+	}
+	if len(snippet) > 200 {
+		snippet = snippet[:200] + "..."
+	}
+	return fmt.Errorf("PowerShell 没有确认剪贴板写入（%s）—— 请确认系统里的 powershell.exe 可用", snippet)
+}
+
 func (c *Clipboard) copyWindows(data []byte) error {
 	f, err := tempFile("", "mojinest-*.png", data)
 	if err != nil {
@@ -97,6 +115,17 @@ func (c *Clipboard) copyWindows(data []byte) error {
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("复制到剪贴板失败: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return psCopyConfirmed(out)
+}
+
+// PasteConfirmed is the same idea for the auto-paste step.
+func pasteConfirmed(out []byte) error {
+	if strings.TrimSpace(string(out)) == "" {
+		return nil // SendKeys prints nothing on success
+	}
+	if strings.Contains(strings.ToLower(string(out)), "error") {
+		return fmt.Errorf("自动粘贴可能失败: %s", strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -168,12 +197,14 @@ func (c *Clipboard) pasteWindows() error {
 	const script = `
 Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.SendKeys]::SendWait('^v')
+Write-Output 'ok'
 `
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-STA", "-Command", strings.ReplaceAll(script, "\n", ";"))
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		return fmt.Errorf("自动粘贴失败: %v: %s", err, strings.TrimSpace(string(out)))
 	}
-	return nil
+	return psCopyConfirmed(out)
 }
 
 func (c *Clipboard) pasteDarwin() error {

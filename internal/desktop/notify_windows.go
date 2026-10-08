@@ -24,9 +24,14 @@ const (
 	idNo            = 7
 )
 
-// Notify shows a native dialog. It exists because double-clicking the exe has
-// no visible console: without a dialog the user only sees a window flash.
-func Notify(title, text string, isError bool) {
+// Notify shows a native dialog when one is appropriate. DialogMode decides:
+// scripts get stderr (a modal box would block them forever), while a
+// double-clicked exe or a hotkey action gets a real dialog.
+func Notify(mode DialogMode, title, text string, isError bool) {
+	if !ShouldDialog(mode) {
+		NotifyStderr(title, text, isError)
+		return
+	}
 	flags := uintptr(mbOK | mbSetForeground | mbTopMost)
 	if isError {
 		flags |= mbIconError

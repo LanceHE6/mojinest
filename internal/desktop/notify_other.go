@@ -7,13 +7,9 @@ import (
 	"os"
 )
 
-// Notify prints to stderr on platforms where a dialog box would be noise.
-func Notify(title, text string, isError bool) {
-	prefix := "提示"
-	if isError {
-		prefix = "错误"
-	}
-	fmt.Fprintf(os.Stderr, "%s: %s\n%s\n", prefix, title, text)
+// Notify on non-Windows platforms: text only.
+func Notify(_ DialogMode, title, text string, isError bool) {
+	NotifyStderr(title, text, isError)
 }
 
 // CanPrompt reports whether AskYesNoCancel can actually show a dialog.

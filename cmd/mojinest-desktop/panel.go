@@ -15,7 +15,7 @@ import (
 func controlPanel(cfgPath string) int {
 	cfg, err := desktop.Load(cfgPath)
 	if err != nil {
-		desktop.Notify("Mojinest 配置读取失败", fmt.Sprintf("%v\n\n配置文件：%s", err, cfgPath), true)
+		desktop.Notify(desktop.DialogAlways, "Mojinest 配置读取失败", fmt.Sprintf("%v\n\n配置文件：%s", err, cfgPath), true)
 		return 1
 	}
 
@@ -43,7 +43,7 @@ func controlPanel(cfgPath string) int {
 	case desktop.AskYes:
 		picker := desktop.NewPicker(cfg, nil)
 		if err := picker.Open(nil); err != nil {
-			desktop.Notify("打不开选图窗口", err.Error(), true)
+			desktop.Notify(desktop.DialogAlways, "打不开选图窗口", err.Error(), true)
 			return 1
 		}
 		return 0
@@ -55,7 +55,7 @@ func controlPanel(cfgPath string) int {
 			text += "\n\n开机自启：把本程序快捷方式放进 shell:startup，参数填 run。\n" +
 				"运行时按 " + cfg.Hotkey + " 即可叫出表情库。"
 		}
-		desktop.Notify("如何常驻运行", text, false)
+		desktop.Notify(desktop.DialogAlways, "如何常驻运行", text, false)
 		return 0
 
 	default:

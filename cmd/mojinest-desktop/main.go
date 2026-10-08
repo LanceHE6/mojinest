@@ -52,45 +52,37 @@ const usage = `Mojinest 桌面客户端
 // version is stamped at build time with -ldflags "-X main.version=...".
 var version = "0.2.0"
 
-// parseArgs splits argv into the subcommand and its flags.
+// parseArgs splits argv into flags and positional arguments.
 //
-// Go's flag package stops at the first positional argument, so
-// `mojinest-desktop relay -port-file x` would silently ignore -port-file.
-// Both orders are common (a hotkey binding writes `pick -config …`, a human
-// types `-config … pick`), so the subcommand is located first and the flag set
-// is parsed from everything else.
-func parseArgs(fs *flag.FlagSet, argv []string) error {
-	sub := ""
-	rest := make([]string, 0, len(argv))
-	expectValue := false
-	for _, a := range argv {
-		if expectValue {
-			rest = append(rest, a)
-			expectValue = false
+// Go's flag package stops parsing at the first positional argument, so
+// `mojinest-desktop copy 猫 -quiet` would silently ignore -quiet, and
+// `mojinest-desktop relay -port-file x` would ignore its port file (which is
+// exactly what bit us: the relay never recorded its port). Both orders are in
+// real use — a hotkey binding writes `pick -config …`, a human types
+// `-config … pick` — so the arguments are classified here and the flag set is
+// parsed from the flag part alone. Returns the positional arguments in order:
+// [subcommand, words...].
+func parseArgs(fs *flag.FlagSet, argv []string) ([]string, error) {
+	var flagArgs, positionals []string
+	for i := 0; i < len(argv); i++ {
+		a := argv[i]
+		if !strings.HasPrefix(a, "-") || a == "-" {
+			positionals = append(positionals, a)
 			continue
 		}
-		if strings.HasPrefix(a, "-") {
-			rest = append(rest, a)
-			name := strings.TrimLeft(a, "-")
-			if !strings.Contains(name, "=") && flagNeedsValue(fs, name) {
-				expectValue = true
+		flagArgs = append(flagArgs, a)
+		name := strings.TrimLeft(a, "-")
+		if !strings.Contains(name, "=") && flagNeedsValue(fs, name) {
+			if i+1 < len(argv) {
+				i++
+				flagArgs = append(flagArgs, argv[i])
 			}
-			continue
 		}
-		if sub == "" {
-			sub = a
-			continue
-		}
-		rest = append(rest, a)
 	}
-	if err := fs.Parse(rest); err != nil {
-		return err
+	if err := fs.Parse(flagArgs); err != nil {
+		return nil, err
 	}
-	if sub != "" {
-		// Put the subcommand back as the first positional argument.
-		return fs.Parse(append([]string{sub}, fs.Args()...))
-	}
-	return nil
+	return positionals, nil
 }
 
 // flagNeedsValue reports whether a flag takes a separate value argument.
@@ -139,11 +131,13 @@ func run(argv []string) int {
 	hotkey := fs.String("hotkey", "", "覆盖全局快捷键")
 	browser := fs.String("browser", "", "覆盖浏览器可执行文件")
 	portFile := fs.String("port-file", "", "本地转发端口记录文件（内部使用）")
+	dialogs := fs.String("dialogs", "auto", "弹窗策略: auto（有控制台就写 stderr）| always | never")
 	quiet := fs.Bool("quiet", false, "只输出错误")
 	showVersion := fs.Bool("version", false, "打印版本")
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 
-	if err := parseArgs(fs, argv); err != nil {
+	positionals, err := parseArgs(fs, argv)
+	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			fmt.Print(usage)
 			return 0
@@ -154,15 +148,20 @@ func run(argv []string) int {
 		fmt.Printf("mojinest-desktop %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
 		return 0
 	}
+	dialogMode, ok := desktop.ParseDialogMode(*dialogs)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "无法识别的 -dialogs 值 %q（可选 auto/always/never）\n", *dialogs)
+		return 2
+	}
 
 	// No subcommand: never silently pop a window. Double-clicking the exe used
 	// to open a browser tab, which surprised the user; show a menu instead.
-	if fs.NArg() == 0 {
+	if len(positionals) == 0 {
 		return controlPanel(*cfgPath)
 	}
 
-	cmd := fs.Arg(0)
-	args := fs.Args()[1:]
+	cmd := positionals[0]
+	args := positionals[1:]
 
 	// `relay` is a hidden helper spawned by `pick`; it must run before the
 	// logging/flag plumbing below so it can stay quiet and fully detached.
@@ -192,7 +191,7 @@ func run(argv []string) int {
 	cfg, err := loadWithOverrides(*cfgPath, *server, *token, *hotkey, *browser)
 	if err != nil {
 		logger.Error("读取配置失败", "err", err, "path", *cfgPath)
-		desktop.Notify("Mojinest 配置读取失败", fmt.Sprintf("%v\n\n配置文件：%s", err, *cfgPath), true)
+		desktop.Notify(dialogMode, "Mojinest 配置读取失败", fmt.Sprintf("%v\n\n配置文件：%s", err, *cfgPath), true)
 		return 1
 	}
 
@@ -223,7 +222,7 @@ func run(argv []string) int {
 		}
 		if err := picker.Open(ctx); err != nil {
 			logger.Error("打开选图窗口失败", "err", err)
-			desktop.Notify("Mojinest 打不开选图窗口", err.Error(), true)
+			desktop.Notify(dialogMode, "Mojinest 打不开选图窗口", err.Error(), true)
 			return 1
 		}
 		return 0
@@ -233,16 +232,16 @@ func run(argv []string) int {
 		if err := copyBest(ctx, client, clip, query); err != nil {
 			logger.Error("复制失败", "err", err)
 			if !*quiet {
-				desktop.Notify("Mojinest 复制失败", err.Error(), true)
+				desktop.Notify(dialogMode, "Mojinest 复制失败", err.Error(), true)
 			}
 			return 1
 		}
 		return 0
 
 	case "run", "daemon":
-		if err := runDaemon(ctx, cfg, client, picker, logger); err != nil {
+		if err := runDaemon(ctx, cfg, client, picker, logger, dialogMode); err != nil {
 			logger.Error("运行失败", "err", err)
-			desktop.Notify("Mojinest 启动失败", err.Error(), true)
+			desktop.Notify(dialogMode, "Mojinest 启动失败", err.Error(), true)
 			return 1
 		}
 		return 0
@@ -355,7 +354,11 @@ func copyBest(ctx context.Context, c *desktop.Client, clip *desktop.Clipboard, q
 	return nil
 }
 
-func runDaemon(ctx context.Context, cfg *desktop.Config, client *desktop.Client, picker *desktop.Picker, logger *slog.Logger) error {
+// listenHotkey is a seam so tests can drive the press→action path without a
+// real global shortcut (wine's RegisterHotKey cannot deliver WM_HOTKEY).
+var listenHotkey = desktop.ListenHotkeyWithReady
+
+func runDaemon(ctx context.Context, cfg *desktop.Config, client *desktop.Client, picker *desktop.Picker, logger *slog.Logger, dialogMode desktop.DialogMode) error {
 	hk, err := desktop.ParseHotkey(cfg.Hotkey)
 	if err != nil {
 		return err
@@ -386,7 +389,16 @@ func runDaemon(ctx context.Context, cfg *desktop.Config, client *desktop.Client,
 	}
 
 	hotkeyErr := make(chan error, 1)
-	go func() { hotkeyErr <- desktop.ListenHotkey(ctx, hk, press) }()
+	go func() {
+		hotkeyErr <- listenHotkey(ctx, hk, press, func(err error) {
+			if err != nil {
+				logger.Error("全局快捷键不可用", "err", err)
+				desktop.Notify(dialogMode, "Mojinest 快捷键注册失败", err.Error(), true)
+				return
+			}
+			logger.Info("全局快捷键已注册，按下即可呼出表情库", "hotkey", hk.String())
+		})
+	}()
 
 	logger.Info("Mojinest 桌面客户端已启动", "hotkey", hk.String(), "server", cfg.Normalized(),
 		"platform", runtime.GOOS)

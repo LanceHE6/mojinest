@@ -15,11 +15,24 @@ func hotkeySupportedPlatform() bool { return false }
 // need compositor cooperation, so the client relies on the desktop environment
 // binding a shortcut to `mojinest-desktop pick` instead.
 func ListenHotkey(ctx context.Context, hk *Hotkey, onPress func()) error {
+	return ListenHotkeyWithReady(ctx, hk, onPress, nil)
+}
+
+// ListenHotkeyWithReady reports the platform limitation through onReady so the
+// caller has one code path for both platforms.
+func ListenHotkeyWithReady(ctx context.Context, hk *Hotkey, onPress func(), onReady func(error)) error {
 	if os.Getenv("MOJINEST_ASSUME_HOTKEY") == "1" { // for tests only
+		if onReady != nil {
+			onReady(nil)
+		}
 		<-ctx.Done()
 		return nil
 	}
-	return fmt.Errorf("%w：请在系统设置里把快捷键 %s 绑定到 `mojinest-desktop pick`", ErrHotkeyUnsupported, hk.String())
+	err := fmt.Errorf("%w：请在系统设置里把快捷键 %s 绑定到 `mojinest-desktop pick`", ErrHotkeyUnsupported, hk.String())
+	if onReady != nil {
+		onReady(err)
+	}
+	return err
 }
 
 // HotkeyInstructions returns user-facing setup guidance per platform.

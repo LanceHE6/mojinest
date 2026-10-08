@@ -82,6 +82,13 @@ var (
 // ListenHotkey registers the shortcut and invokes onPress whenever it fires.
 // It blocks until ctx is cancelled (run it in its own goroutine).
 func ListenHotkey(ctx context.Context, hk *Hotkey, onPress func()) error {
+	return ListenHotkeyWithReady(ctx, hk, onPress, nil)
+}
+
+// ListenHotkeyWithReady is ListenHotkey plus an onReady callback fired once the
+// shortcut is actually registered — callers use it to tell the user that the
+// hotkey is live (or that registration failed) instead of guessing.
+func ListenHotkeyWithReady(ctx context.Context, hk *Hotkey, onPress func(), onReady func(error)) error {
 	if !hotkeySupportedPlatform() {
 		return ErrHotkeyUnsupported
 	}
@@ -113,9 +120,16 @@ func ListenHotkey(ctx context.Context, hk *Hotkey, onPress func()) error {
 	defer runtime.UnlockOSThread()
 
 	if r, _, err := procRegisterHotKey.Call(0, uintptr(id), uintptr(mods), uintptr(vk)); r == 0 {
-		return fmt.Errorf("注册全局快捷键 %s 失败（可能被别的程序占用）: %w", hk.String(), err)
+		regErr := fmt.Errorf("注册全局快捷键 %s 失败（可能被别的程序占用）: %w", hk.String(), err)
+		if onReady != nil {
+			onReady(regErr)
+		}
+		return regErr
 	}
 	defer procUnregisterHotKey.Call(0, uintptr(id))
+	if onReady != nil {
+		onReady(nil)
+	}
 
 	// Wake the blocking GetMessage when ctx is done.
 	stop := make(chan struct{})
