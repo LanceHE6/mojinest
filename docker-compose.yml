@@ -1,0 +1,14 @@
+services:
+  mojinest:
+    build: .
+    image: mojinest:latest
+    container_name: mojinest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MOJINEST_LISTEN: ":8642"
+      MOJINEST_DATA_DIR: /data
+    ports:
+      - "18642:8642"
+    volumes:
+      - ./data:/data

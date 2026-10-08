@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mojinest</title>
+<style>
+  :root { color-scheme: dark; --bg:#12131a; --card:#1b1d26; --line:#2c2f3d; --fg:#e6e8f0; --mut:#8b90a5; --acc:#5b8cff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 14px/1.5 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--fg); }
+  header { position:sticky; top:0; z-index:5; display:flex; gap:10px; align-items:center; padding:10px 14px; background:rgba(18,19,26,.92); border-bottom:1px solid var(--line); backdrop-filter:blur(6px); }
+  h1 { font-size:16px; margin:0 8px 0 0; letter-spacing:.5px; }
+  h1 span { color:var(--acc); }
+  input,select,button,textarea { font:inherit; color:var(--fg); background:#20222d; border:1px solid var(--line); border-radius:8px; padding:7px 10px; }
+  button { cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  #q { flex:1; min-width:120px; }
+  main { padding:14px; }
+  #grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; }
+  .card { position:relative; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; cursor:pointer; aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
+  .card:hover { border-color:var(--acc); }
+  .card img { max-width:100%; max-height:100%; object-fit:contain; }
+  .card .badge { position:absolute; left:6px; top:6px; font-size:10px; padding:1px 5px; border-radius:6px; background:#000a; color:#cfd4e6; }
+  .card .tagline { position:absolute; left:0; right:0; bottom:0; font-size:11px; padding:4px 6px; background:linear-gradient(transparent,#000c); color:#d8dcec; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; color:var(--mut); }
+  #tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  #tags button { font-size:12px; padding:4px 9px; border-radius:999px; }
+  #tags button.on { background:var(--acc); border-color:var(--acc); color:#fff; }
+  #empty, #status { color:var(--mut); padding:24px 0; text-align:center; }
+  #login { max-width:340px; margin:12vh auto; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; }
+  #login h2 { margin:0 0 4px; font-size:16px; }
+  #login p { color:var(--mut); margin:0 0 14px; font-size:12px; }
+  #login input { width:100%; margin-bottom:10px; }
+  #login button { width:100%; background:var(--acc); border-color:var(--acc); color:#fff; }
+  #toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%); background:#000d; padding:8px 14px; border-radius:10px; opacity:0; transition:.2s; pointer-events:none; }
+  #toast.show { opacity:1; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div id="login">
+  <h2>Mojinest <span style="color:var(--acc)">贴图小窝</span></h2>
+  <p>输入服务端 Token 进入你的表情库</p>
+  <input id="token" type="password" placeholder="Token" autocomplete="current-password">
+  <button onclick="login()">进入</button>
+  <div id="loginmsg" style="color:#ff8080;font-size:12px;margin-top:8px"></div>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <h1>Moji<span>nest</span></h1>
+    <input id="q" placeholder="搜索：名称 / 标签 / 备注 / AI 描述 / 图中文字" oninput="debouncedLoad()">
+    <button onclick="pickFile()">上传</button>
+    <input id="file" type="file" accept="image/*" multiple class="hidden" onchange="upload(this.files)">
+    <select id="sort" onchange="load()">
+      <option value="newest">最新</option>
+      <option value="oldest">最早</option>
+      <option value="name">名称</option>
+      <option value="used">常用</option>
+    </select>
+    <button id="fav" onclick="toggleFav()">★ 收藏</button>
+    <button id="trash" onclick="toggleTrash()">🗑 回收站</button>
+  </header>
+  <main>
+    <div id="bar"><span id="count"></span><span id="store"></span><span id="jobs"></span></div>
+    <div id="tags"></div>
+    <div id="grid"></div>
+    <div id="empty" class="hidden">这里还空着 —— 点右上「上传」把你的表情搬进来</div>
+    <div id="status"></div>
+  </main>
+  <div id="toast"></div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let state = { q:'', tags:[], sort:'newest', favorite:false, trash:false, limit:120, offset:0, total:0 };
+let allTags = [], toastTimer = null;
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch('/api' + path, { credentials:'same-origin', ...opts });
+  if (r.status === 401) { showLogin(); throw new Error('unauthorized'); }
+  if (!r.ok) { const t = await r.text(); throw new Error(t || r.statusText); }
+  const ct = r.headers.get('content-type') || '';
+  return ct.includes('application/json') ? r.json() : r.blob();
+}
+
+function showLogin() { $('#login').classList.remove('hidden'); $('#app').classList.add('hidden'); }
+function showApp() { $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); }
+
+async function login() {
+  const token = $('#token').value.trim();
+  try {
+    const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token }) });
+    if (!r.ok) { $('#loginmsg').textContent = 'Token 不正确'; return; }
+    localStorage.setItem('mojinest_token', token);
+    showApp(); await boot();
+  } catch (e) { $('#loginmsg').textContent = String(e.message || e); }
+}
+
+let loadTimer = null;
+function debouncedLoad() { clearTimeout(loadTimer); loadTimer = setTimeout(() => { state.offset = 0; load(); }, 220); }
+
+async function boot() {
+  try { await api('/auth/me'); showApp(); } catch { return; }
+  await load(); await loadTags(); await loadStats();
+}
+
+async function load() {
+  $('#status').textContent = '加载中…';
+  const my = ++loadSeq;
+  const p = new URLSearchParams();
+  state.q = $('#q').value.trim(); state.sort = $('#sort').value;
+  if (state.q) p.set('q', state.q);
+  if (state.tags.length) p.set('tags', state.tags.join(','));
+  if (state.favorite) p.set('favorite', '1');
+  if (state.trash) p.set('trash', '1');
+  p.set('sort', state.sort); p.set('limit', state.limit); p.set('offset', state.offset);
+  let data;
+  try {
+    data = await api('/items?' + p.toString());
+  } catch (e) {
+    if (my === loadSeq) { $('#status').textContent = '加载失败：' + (e.message || e); }
+    return;
+  }
+  if (my !== loadSeq) return; // a newer query is in flight; drop this response
+  const items = data.items || [];
+  state.total = data.total;
+  render(items);
+  $('#count').textContent = `${data.total} 张`;
+  $('#status').textContent = '';
+  const filtering = !!state.q || state.tags.length > 0 || state.favorite || state.trash;
+  $('#empty').textContent = filtering
+    ? '没有匹配的表情'
+    : '这里还空着 —— 点右上「上传」把你的表情搬进来';
+  $('#empty').classList.toggle('hidden', items.length > 0);
+}
+
+let loadSeq = 0;
+
+function render(items) {
+  const grid = $('#grid'); grid.innerHTML = '';
+  for (const it of items) {
+    const el = document.createElement('div'); el.className = 'card'; el.title = title(it);
+    const img = document.createElement('img'); img.loading = 'lazy';
+    img.src = `/api/thumbs/${it.sha256}`;
+    el.appendChild(img);
+    if (it.animated) { const b = document.createElement('div'); b.className = 'badge'; b.textContent = '动图'; el.appendChild(b); }
+    const label = it.name || (it.tags[0] || {}).name || it.ai_description || '';
+    if (label) { const l = document.createElement('div'); l.className = 'tagline'; l.textContent = label; el.appendChild(l); }
+    el.onclick = () => copyItem(it, el);
+    grid.appendChild(el);
+  }
+}
+
+function title(it) {
+  const tags = (it.tags || []).map(t => t.name).join(' ');
+  return [it.name, tags, it.note, it.ai_description].filter(Boolean).join(' | ');
+}
+
+async function copyItem(it, el) {
+  try {
+    const blob = await api(`/files/${it.sha256}?ext=${it.ext}`);
+    let out = blob;
+    if (!['image/png','image/gif'].includes(it.mime)) {
+      out = await toPNG(blob);
+    }
+    if (!window.isSecureContext || !navigator.clipboard || !window.ClipboardItem) {
+      throw new Error('浏览器不允许写剪贴板（非 HTTPS 环境）');
+    }
+    await navigator.clipboard.write([new ClipboardItem({ [out.type]: out })]);
+    toast('已复制到剪贴板，直接 Ctrl+V 粘贴');
+    api(`/items/${it.id}/use`, { method:'POST' }).catch(() => {});
+  } catch (e) {
+    // Fall back to saving the file so non-secure clients (LAN http) still work.
+    toast('复制不可用，已改为下载：' + (e.message || e));
+    const a = document.createElement('a');
+    a.href = `/api/files/${it.sha256}?ext=${it.ext}&token=${encodeURIComponent(tokenOf())}`;
+    a.download = (it.name || it.sha256) + '.' + it.ext;
+    a.click();
+    api(`/items/${it.id}/use`, { method:'POST' }).catch(() => {});
+  }
+}
+
+function tokenOf() { return localStorage.getItem('mojinest_token') || ''; }
+
+async function toPNG(blob) {
+  const bmp = await createImageBitmap(blob);
+  const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+  c.getContext('2d').drawImage(bmp, 0, 0);
+  return await new Promise(res => c.toBlob(res, 'image/png'));
+}
+
+function pickFile() { $('#file').click(); }
+
+async function upload(files) {
+  if (!files || !files.length) return;
+  const fd = new FormData();
+  for (const f of files) fd.append('file', f, f.name);
+  const tags = state.tags.join(',');
+  if (tags) fd.append('tags', tags);
+  $('#status').textContent = `上传中… (${files.length})`;
+  try {
+    const r = await api('/items', { method:'POST', body: fd });
+    toast(`已导入 ${r.items.length} 张${r.skipped ? `，跳过 ${r.skipped} 张（重复或格式不支持）` : ''}`);
+    await load(); await loadTags(); await loadStats();
+  } catch (e) { toast('上传失败：' + (e.message || e)); }
+  $('#status').textContent = '';
+  $('#file').value = '';
+}
+
+async function loadTags() {
+  allTags = await api('/tags');
+  const box = $('#tags'); box.innerHTML = '';
+  for (const t of allTags) {
+    const b = document.createElement('button');
+    b.textContent = `${t.name} ${t.count}`;
+    if (state.tags.includes(t.name)) b.classList.add('on');
+    b.onclick = () => {
+      const i = state.tags.indexOf(t.name);
+      if (i >= 0) state.tags.splice(i, 1); else state.tags.push(t.name);
+      state.offset = 0; loadTags(); load();
+    };
+    box.appendChild(b);
+  }
+}
+
+async function loadStats() {
+  const s = await api('/stats');
+  const mb = (s.bytes / 1048576).toFixed(1);
+  $('#store').textContent = `${s.animated} 张动图 · ${s.tags} 个标签 · ${mb} MB`;
+  const jobs = await api('/jobs');
+  const pending = (jobs.pending || 0) + (jobs.running || 0), failed = jobs.failed || 0;
+  $('#jobs').textContent = jobs.tagger_enabled
+    ? `AI 标注：队列 ${pending}${failed ? ` / 失败 ${failed}` : ''}`
+    : 'AI 标注：未配置模型';
+  if (failed && jobs.tagger_enabled) {
+    const b = document.createElement('button');
+    b.textContent = '重试失败的标注';
+    b.style.marginLeft = '8px';
+    b.onclick = async () => { await api('/jobs/retry', { method:'POST' }); toast('已重新排队'); loadStats(); };
+    $('#jobs').appendChild(b);
+  }
+}
+
+function toggleFav() { state.favorite = !state.favorite; $('#fav').style.borderColor = state.favorite ? 'var(--acc)' : ''; state.offset = 0; load(); }
+function toggleTrash() { state.trash = !state.trash; $('#trash').style.borderColor = state.trash ? 'var(--acc)' : ''; state.offset = 0; load(); }
+
+boot();
+</script>
+</body>
+</html>
