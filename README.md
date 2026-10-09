@@ -100,12 +100,13 @@ docker compose up -d --build
 
 - [x] v0.1 服务端核心：上传去重、标签/分组/搜索、AI 标注流水线、本地 + S3 双存储、Web 库
 - [x] v0.2 桌面客户端：全局快捷键呼出选图窗口、按关键词一键复制、原生剪贴板（Win/mac/Linux）
-- [ ] v0.3 导入器：QQNT（PC）、微信 PC 解密提取、Android QQ 收藏目录
+- [x] v0.3 导入器（阶段一）：QQNT 收藏表情目录自动探测与批量导入 (`import-qq`)
+- [ ] v0.3 导入器（阶段二）：微信 PC 解密提取、Android QQ 收藏目录
 - [ ] v0.4 手机端体验：上传/分享目标、iOS 快捷指令、局域网直连
 - [ ] v0.5 多用户与共享库、按用户隔离配额
 - [ ] v0.6 语义检索（向量）与以图搜图
 
-## 桌面客户端（v0.2）
+## 桌面客户端（v0.2 & v0.3）
 
 单文件、无运行时依赖（Windows 是 exe，Linux/macOS 直接是二进制）。
 
@@ -117,6 +118,7 @@ make release                 # dist/ 下三平台产物 + 服务端
 ./mojinest-desktop run       # 常驻并注册全局快捷键（Windows、macOS）
 ./mojinest-desktop pick      # 打开选图窗口（给系统快捷键调用）
 ./mojinest-desktop copy 猫    # 直接按关键词复制第一张进剪贴板
+./mojinest-desktop import-qq # 自动寻找并批量导入本地 QQNT 收藏表情包
 ./mojinest-desktop config    # 打印当前配置（令牌打码）
 ./mojinest-desktop help      # 完整用法
 ```

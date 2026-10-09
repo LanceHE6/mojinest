@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"mojinest/internal/desktop"
+	"mojinest/internal/importer"
 )
 
 const usage = `Mojinest 桌面客户端
@@ -32,6 +33,7 @@ const usage = `Mojinest 桌面客户端
   pick              打开选图窗口（供系统快捷键调用）
   copy [关键词...]   直接按关键词复制第一张进剪贴板
   run               常驻并注册全局快捷键（Windows / macOS）
+  import-qq [路径]  扫描并批量导入电脑端 QQNT 收藏表情
   check             自检：服务端、令牌、快捷键、剪贴板工具、浏览器
   config            打印当前配置
   help              显示本帮助
@@ -246,6 +248,13 @@ func run(argv []string) int {
 		}
 		return 0
 
+	case "import-qq":
+		customRoot := ""
+		if len(args) > 0 {
+			customRoot = args[0]
+		}
+		return doImportQQ(ctx, client, customRoot, logger)
+
 	case "check":
 		return selfCheck(ctx, cfg, client, logger)
 
@@ -253,6 +262,45 @@ func run(argv []string) int {
 		fmt.Fprintf(os.Stderr, "未知子命令 %q\n\n%s", cmd, usage)
 		return 2
 	}
+}
+
+// doImportQQ handles scanning and importing QQNT stickers into the Mojinest server.
+func doImportQQ(ctx context.Context, client *desktop.Client, customRoot string, logger *slog.Logger) int {
+	fmt.Println("正在查找本地 QQNT 收藏表情目录...")
+	accounts, err := importer.FindQQNTEmojiDirs(customRoot)
+	if err != nil {
+		logger.Error("扫描 QQNT 目录失败", "err", err)
+		return 1
+	}
+	if len(accounts) == 0 {
+		fmt.Println("未找到任何 QQNT 收藏表情目录。")
+		fmt.Println("提示：可直接指定路径，例如：mojinest-desktop import-qq \"C:\\...\\nt_data\\Emoji\\personal_emoji\\Ori\"")
+		return 1
+	}
+
+	totalImported := 0
+	totalSkipped := 0
+	for _, acc := range accounts {
+		fmt.Printf("\n发现 QQ 账号 [%s] 表情目录: %s\n", acc.ID, acc.EmojiPath)
+		fmt.Printf("开始批量导入...\n")
+		res, err := importer.ImportQQNTEmoji(ctx, client, acc.EmojiPath, []string{"QQ收藏", acc.ID}, 20)
+		if err != nil {
+			logger.Error("导入失败", "account", acc.ID, "err", err)
+			continue
+		}
+		fmt.Printf("账号 [%s] 导入完成：扫描 %d 个，成功入库 %d 个，跳过/重复 %d 个\n",
+			acc.ID, res.Scanned, res.Imported, res.Skipped)
+		if len(res.Errors) > 0 {
+			for _, e := range res.Errors {
+				logger.Warn("文件导入错误", "err", e)
+			}
+		}
+		totalImported += res.Imported
+		totalSkipped += res.Skipped
+	}
+
+	fmt.Printf("\n总计：成功导入 %d 个表情，跳过/重复 %d 个。\n", totalImported, totalSkipped)
+	return 0
 }
 
 // doSetup writes the config, runs the health check and prints platform advice.
