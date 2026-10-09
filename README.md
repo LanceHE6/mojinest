@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="client-desktop/src-tauri/icons/128x128@2x.png" width="128" height="128" alt="Mojinest Logo">
+</p>
+
 # Mojinest
 
 自部署的表情包 / 贴图跨平台统一管理系统。散落在 QQ、微信、企业微信、Telegram 里的收藏，
