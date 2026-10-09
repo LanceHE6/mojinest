@@ -21,74 +21,81 @@ pub struct DetectedPlatform {
 }
 
 // 检查文件头是否为有效图像 (PNG, GIF, JPEG, WEBP)
-fn sniff_image_type(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
+pub fn sniff_image_type(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
     if bytes.len() < 8 {
         return None;
     }
-    if &bytes[0..8] == b"\x89PNG\r\n\x1a\n" {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         return Some(("png", "image/png"));
     }
-    if &bytes[0..3] == b"GIF" {
+    if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") || bytes.starts_with(b"GIF") {
         return Some(("gif", "image/gif"));
     }
-    if &bytes[0..3] == b"\xFF\xD8\xFF" {
+    if bytes.starts_with(b"\xFF\xD8\xFF") {
         return Some(("jpg", "image/jpeg"));
     }
-    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+    if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
         return Some(("webp", "image/webp"));
     }
     None
 }
 
-// 寻找常见的应用本地表情路径 (Windows & 全平台)
+// 自动检测各社交平台本地表情包路径
 pub fn detect_platform_sources() -> Vec<DetectedPlatform> {
     let mut list = Vec::new();
 
-    // 1. QQNT
-    let mut qq_roots = Vec::new();
-    if let Ok(userprofile) = std::env::var("USERPROFILE") {
-        qq_roots.push(PathBuf::from(&userprofile).join("Documents\\Tencent Files"));
-        qq_roots.push(PathBuf::from(&userprofile).join("AppData\\Roaming\\Tencent\\QQNT"));
-    }
-    // 兼顾用户 D 盘安装/数据盘
-    qq_roots.push(PathBuf::from("D:\\QQNT"));
-    qq_roots.push(PathBuf::from("D:\\Tencent Files"));
+    let userprofile = std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\Default".into());
+    let doc_dir = PathBuf::from(&userprofile).join("Documents");
 
-    for root in qq_roots {
-        if root.exists() {
-            for entry in WalkDir::new(&root).max_depth(5).into_iter().filter_map(|e| e.ok()) {
-                let name = entry.file_name().to_string_lossy();
-                if name.eq_ignore_ascii_case("Ori") || name.eq_ignore_ascii_case("CustomFace") {
-                    let c = count_images(entry.path());
-                    if c > 0 {
-                        list.push(DetectedPlatform {
-                            id: "qq".into(),
-                            name: format!("QQ 表情库 ({})", entry.path().display()),
-                            path: entry.path().to_string_lossy().to_string(),
-                            count: c,
-                        });
-                    }
+    // 1. QQNT (收藏表情 Ori 与 接收的表情 emoji-recv)
+    let qq_tf = doc_dir.join("Tencent Files");
+    if qq_tf.exists() {
+        for entry in WalkDir::new(&qq_tf).max_depth(6).into_iter().filter_map(|e| e.ok()) {
+            if !entry.file_type().is_dir() {
+                continue;
+            }
+            let p = entry.path();
+            let name = entry.file_name().to_string_lossy();
+            // 收藏表情
+            if name.eq_ignore_ascii_case("personal_emoji") || (name.eq_ignore_ascii_case("Ori") && p.to_string_lossy().contains("personal_emoji")) {
+                let c = count_valid_images(p);
+                if c > 0 {
+                    list.push(DetectedPlatform {
+                        id: "qq".into(),
+                        name: format!("QQ 收藏表情 ({})", p.display()),
+                        path: p.to_string_lossy().to_string(),
+                        count: c,
+                    });
+                }
+            } else if name.eq_ignore_ascii_case("emoji-recv") {
+                let c = count_valid_images(p);
+                if c > 0 {
+                    list.push(DetectedPlatform {
+                        id: "qq".into(),
+                        name: format!("QQ 聊天表情缓存 ({})", p.display()),
+                        path: p.to_string_lossy().to_string(),
+                        count: c,
+                    });
                 }
             }
         }
     }
 
-    // 2. 微信 (WeChat / xWeChat 4.x)
-    let mut wx_roots = Vec::new();
-    if let Ok(userprofile) = std::env::var("USERPROFILE") {
-        wx_roots.push(PathBuf::from(&userprofile).join("Documents\\WeChat Files"));
-        wx_roots.push(PathBuf::from(&userprofile).join("AppData\\Roaming\\Tencent\\WeChat"));
-    }
-    wx_roots.push(PathBuf::from("D:\\xwechat_files"));
-    wx_roots.push(PathBuf::from("D:\\Weixin"));
-
-    for root in wx_roots {
-        if root.exists() {
-            for entry in WalkDir::new(&root).max_depth(6).into_iter().filter_map(|e| e.ok()) {
+    // 2. 微信 (支持 D 盘 xwechat_files 及常见 WeChat Files)
+    let wx_candidates = vec![
+        PathBuf::from("D:\\xwechat_files"),
+        doc_dir.join("WeChat Files"),
+    ];
+    for wx_root in wx_candidates {
+        if wx_root.exists() {
+            for entry in WalkDir::new(&wx_root).max_depth(6).into_iter().filter_map(|e| e.ok()) {
+                if !entry.file_type().is_dir() {
+                    continue;
+                }
                 let p = entry.path();
                 let name = entry.file_name().to_string_lossy();
                 if name.eq_ignore_ascii_case("emoticon") || name.eq_ignore_ascii_case("CustomEmotion") {
-                    let c = count_images(p);
+                    let c = count_valid_images(p);
                     if c > 0 {
                         list.push(DetectedPlatform {
                             id: "wechat".into(),
@@ -103,24 +110,25 @@ pub fn detect_platform_sources() -> Vec<DetectedPlatform> {
     }
 
     // 3. 企业微信 (WXWork)
-    let mut wxwork_roots = Vec::new();
-    if let Ok(userprofile) = std::env::var("USERPROFILE") {
-        wxwork_roots.push(PathBuf::from(&userprofile).join("Documents\\WXWork"));
-        wxwork_roots.push(PathBuf::from(&userprofile).join("AppData\\Roaming\\Tencent\\WXWork"));
-    }
-    wxwork_roots.push(PathBuf::from("D:\\WXWork"));
-
-    for root in wxwork_roots {
+    let wxwork_candidates = vec![
+        PathBuf::from("D:\\WXWork"),
+        doc_dir.join("WXWork"),
+    ];
+    for root in wxwork_candidates {
         if root.exists() {
             for entry in WalkDir::new(&root).max_depth(6).into_iter().filter_map(|e| e.ok()) {
+                if !entry.file_type().is_dir() {
+                    continue;
+                }
+                let p = entry.path();
                 let name = entry.file_name().to_string_lossy();
                 if name.eq_ignore_ascii_case("CustomEmotion") || name.eq_ignore_ascii_case("emoticon") {
-                    let c = count_images(entry.path());
+                    let c = count_valid_images(p);
                     if c > 0 {
                         list.push(DetectedPlatform {
                             id: "wxwork".into(),
-                            name: format!("企业微信表情库 ({})", entry.path().display()),
-                            path: entry.path().to_string_lossy().to_string(),
+                            name: format!("企业微信表情库 ({})", p.display()),
+                            path: p.to_string_lossy().to_string(),
                             count: c,
                         });
                     }
@@ -132,13 +140,22 @@ pub fn detect_platform_sources() -> Vec<DetectedPlatform> {
     list
 }
 
-fn count_images(dir: &Path) -> usize {
+// 快速校验目录内有效合法图片数量
+fn count_valid_images(dir: &Path) -> usize {
     let mut count = 0;
     for entry in WalkDir::new(dir).max_depth(4).into_iter().filter_map(|e| e.ok()) {
         if entry.file_type().is_file() {
             if let Ok(meta) = entry.metadata() {
-                if meta.len() > 512 && meta.len() < 30 * 1024 * 1024 {
-                    count += 1;
+                if meta.len() >= 32 && meta.len() <= 30 * 1024 * 1024 {
+                    if let Ok(mut f) = fs::File::open(entry.path()) {
+                        use std::io::Read;
+                        let mut buf = [0u8; 16];
+                        if let Ok(n) = f.read(&mut buf) {
+                            if sniff_image_type(&buf[..n]).is_some() {
+                                count += 1;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -212,7 +229,7 @@ pub async fn import_directory(
             Err(_) => continue,
         };
 
-        if meta.len() < 512 || meta.len() > 30 * 1024 * 1024 {
+        if meta.len() < 32 || meta.len() > 30 * 1024 * 1024 {
             continue;
         }
 
@@ -224,16 +241,16 @@ pub async fn import_directory(
             }
         };
 
-        total_scanned += 1;
-
         let (ext, mime) = match sniff_image_type(&bytes) {
             Some(pair) => pair,
             None => {
-                // 如果不是标准图片头（例如某些加密或未知文件），跳过
+                // 非合法图片跳过
                 skipped_count += 1;
                 continue;
             }
         };
+
+        total_scanned += 1;
 
         let fname = format!(
             "{}_{}.{}",
@@ -265,7 +282,7 @@ pub async fn import_directory(
         skipped_count,
         failed_count,
         message: format!(
-            "扫描完成：共处理 {} 个文件，成功上传 {} 张，跳过/重复 {} 张，失败 {} 个",
+            "导入完成：扫描到 {} 张有效图片，成功入库 {} 张，跳过/已存在 {} 张，失败 {} 个",
             total_scanned, uploaded_count, skipped_count, failed_count
         ),
     })
