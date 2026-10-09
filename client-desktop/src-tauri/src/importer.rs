@@ -207,31 +207,40 @@ pub async fn upload_image(
 
 // 批量扫描并上传本地文件夹
 pub async fn import_directory(
+    app: tauri::AppHandle,
     server_url: String,
     token: String,
     dir_path: String,
     platform: String,
 ) -> Result<ImportSummary, String> {
+    use tauri::Emitter;
     let client = reqwest::Client::new();
     let mut total_scanned = 0;
     let mut uploaded_count = 0;
     let mut skipped_count = 0;
     let mut failed_count = 0;
 
+    // 先快速收集有效文件列表以确定总数
+    let mut files = Vec::new();
     for entry in WalkDir::new(&dir_path).into_iter().filter_map(|e| e.ok()) {
-        if !entry.file_type().is_file() {
-            continue;
+        if entry.file_type().is_file() {
+            if let Ok(meta) = entry.metadata() {
+                if meta.len() >= 32 && meta.len() <= 30 * 1024 * 1024 {
+                    files.push(entry.into_path());
+                }
+            }
         }
+    }
+    let total_files = files.len();
 
-        let p = entry.path();
-        let meta = match entry.metadata() {
-            Ok(m) => m,
-            Err(_) => continue,
-        };
-
-        if meta.len() < 32 || meta.len() > 30 * 1024 * 1024 {
-            continue;
-        }
+    for (idx, p) in files.iter().enumerate() {
+        let fname = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+        app.emit("import-progress", crate::ImportProgressEvent {
+            current: idx + 1,
+            total: total_files,
+            current_name: fname.clone(),
+            status: "uploading".into(),
+        }).ok();
 
         let bytes = match fs::read(p) {
             Ok(b) => b,
@@ -252,9 +261,9 @@ pub async fn import_directory(
 
         total_scanned += 1;
 
-        let fname = format!(
+        let fname_upload = format!(
             "{}_{}.{}",
-            entry.file_name().to_string_lossy(),
+            fname,
             total_scanned,
             ext
         );
@@ -263,7 +272,7 @@ pub async fn import_directory(
             &client,
             &server_url,
             &token,
-            &fname,
+            &fname_upload,
             bytes,
             mime,
             &platform,

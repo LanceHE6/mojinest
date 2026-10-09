@@ -99,8 +99,84 @@ fn get_detected_platforms() -> Vec<DetectedPlatform> {
     detect_platform_sources()
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ImportProgressEvent {
+    pub current: usize,
+    pub total: usize,
+    pub current_name: String,
+    pub status: String,
+}
+
 #[tauri::command]
-async fn pick_and_import_local_files() -> Result<ImportSummary, String> {
+async fn import_files_from_paths(app: AppHandle, paths: Vec<String>) -> Result<ImportSummary, String> {
+    let cfg = load_config();
+    let client = reqwest::Client::new();
+    let mut uploaded_count = 0;
+    let mut skipped_count = 0;
+    let mut failed_count = 0;
+    let total_scanned = paths.len();
+
+    for (idx, path_str) in paths.iter().enumerate() {
+        let p = std::path::Path::new(path_str);
+        if !p.exists() || !p.is_file() {
+            continue;
+        }
+
+        let fname = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+        app.emit("import-progress", ImportProgressEvent {
+            current: idx + 1,
+            total: total_scanned,
+            current_name: fname.clone(),
+            status: "uploading".into(),
+        }).ok();
+
+        let bytes = match fs::read(p) {
+            Ok(b) => b,
+            Err(_) => {
+                failed_count += 1;
+                continue;
+            }
+        };
+
+        let mime = match p.extension().and_then(|e| e.to_str()).unwrap_or("") {
+            "png" => "image/png",
+            "gif" => "image/gif",
+            "jpg" | "jpeg" => "image/jpeg",
+            "webp" => "image/webp",
+            _ => "application/octet-stream",
+        };
+
+        match importer::upload_image(
+            &client,
+            &cfg.server_url,
+            &cfg.token,
+            &fname,
+            bytes,
+            mime,
+            "drag-drop",
+        )
+        .await
+        {
+            Ok(true) => uploaded_count += 1,
+            Ok(false) => skipped_count += 1,
+            Err(_) => failed_count += 1,
+        }
+    }
+
+    Ok(ImportSummary {
+        total_scanned,
+        uploaded_count,
+        skipped_count,
+        failed_count,
+        message: format!(
+            "拖拽导入完成：共处理 {} 个文件，成功 {} 张，跳过/重复 {} 张，失败 {} 个",
+            total_scanned, uploaded_count, skipped_count, failed_count
+        ),
+    })
+}
+
+#[tauri::command]
+async fn pick_and_import_local_files(app: AppHandle) -> Result<ImportSummary, String> {
     let cfg = load_config();
     let files = FileDialog::new()
         .add_filter("Images", &["png", "jpg", "jpeg", "gif", "webp"])
@@ -117,15 +193,22 @@ async fn pick_and_import_local_files() -> Result<ImportSummary, String> {
     let mut failed_count = 0;
     let total_scanned = files.len();
 
-    for p in files {
-        let bytes = match fs::read(&p) {
+    for (idx, p) in files.iter().enumerate() {
+        let fname = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+        app.emit("import-progress", ImportProgressEvent {
+            current: idx + 1,
+            total: total_scanned,
+            current_name: fname.clone(),
+            status: "uploading".into(),
+        }).ok();
+
+        let bytes = match fs::read(p) {
             Ok(b) => b,
             Err(_) => {
                 failed_count += 1;
                 continue;
             }
         };
-        let fname = p.file_name().unwrap_or_default().to_string_lossy().to_string();
         let mime = match p.extension().and_then(|e| e.to_str()).unwrap_or("") {
             "png" => "image/png",
             "gif" => "image/gif",
@@ -164,9 +247,9 @@ async fn pick_and_import_local_files() -> Result<ImportSummary, String> {
 }
 
 #[tauri::command]
-async fn run_platform_import(dir_path: String, platform: String) -> Result<ImportSummary, String> {
+async fn run_platform_import(app: AppHandle, dir_path: String, platform: String) -> Result<ImportSummary, String> {
     let cfg = load_config();
-    import_directory(cfg.server_url, cfg.token, dir_path, platform).await
+    import_directory(app, cfg.server_url, cfg.token, dir_path, platform).await
 }
 
 #[tauri::command]
@@ -303,6 +386,7 @@ fn main() {
             open_settings_modal,
             get_detected_platforms,
             pick_and_import_local_files,
+            import_files_from_paths,
             run_platform_import,
             hide_window,
             start_drag,

@@ -327,11 +327,66 @@
     color: #cbd5e1;
   }
 
+  /* 拖拽上传覆盖层 */
+  #drop-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(14, 16, 24, 0.92);
+    border: 2px dashed var(--acc);
+    border-radius: 10px;
+    z-index: 300;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+  }
+  #drop-overlay.active {
+    display: flex;
+  }
+  #drop-overlay svg {
+    width: 48px;
+    height: 48px;
+    stroke: var(--acc);
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 32px;
+    animation: bounce 1s infinite alternate ease-in-out;
+  }
+  @keyframes bounce {
+    from { transform: translateY(0); }
+    to { transform: translateY(-8px); }
+  }
+
+  /* 进度条指示容器 */
+  .progress-wrap {
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    background: #181b24;
+    border: 1px solid #2b2f3d;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 6px;
+  }
+  .progress-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: #252836;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #4f80ff, #739aff);
+    transition: width 0.15s ease;
+  }
   /* 底部状态 */
   footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     padding: 4px 12px;
     background: #14161d;
     border-top: 1px solid var(--line);
@@ -434,7 +489,25 @@
     </div>
 
     <div id="import-status-box" style="font-size:11px; color:#8e94a5; border-top:1px solid #2b2f3d; padding-top:8px;"></div>
+
+    <!-- 动态进度条 -->
+    <div id="import-progress-wrap" class="progress-wrap">
+      <div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1;">
+        <span id="import-progress-title">正在导入表情...</span>
+        <span id="import-progress-percent">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div id="import-progress-fill" class="progress-bar-fill"></div>
+      </div>
+    </div>
   </div>
+</div>
+
+<!-- 全局拖拽文件入库提示遮罩 -->
+<div id="drop-overlay">
+  <svg viewBox="0 0 512 512"><path d="M320,367.79,256,431.79l-64-64"/><line x1="256" y1="416" x2="256" y2="272"/><path d="M380.93,207.74A112,112,0,0,0,163.68,172a110.4,110.4,0,0,0-5.83,28.81A104,104,0,0,0,48,304c0,57.34,46.66,104,104,104h32"/><path d="M328,408h36a88,88,0,0,0,88-88c0-41.84-29.39-76.71-68.84-85.22"/></svg>
+  <div style="font-weight:600; font-size:14px; color:#fff;">释放鼠标立即导入表情包</div>
+  <div style="font-size:11px; color:#8e94a5;">支持多选 PNG, GIF, JPG, WEBP</div>
 </div>
 
 <div id="toast"></div>
@@ -936,6 +1009,61 @@
     loadItems();
   };
 
+  // 进度条更新逻辑
+  function updateProgressBar(current, total, name = "") {
+    const wrap = document.getElementById("import-progress-wrap");
+    wrap.style.display = "flex";
+    const percent = Math.min(100, Math.round((current / total) * 100));
+    document.getElementById("import-progress-percent").textContent = `${percent}% (${current}/${total})`;
+    document.getElementById("import-progress-fill").style.width = `${percent}%`;
+    if (name) {
+      document.getElementById("import-progress-title").textContent = `正在导入: ${name}`;
+    }
+  }
+
+  function hideProgressBar() {
+    setTimeout(() => {
+      const wrap = document.getElementById("import-progress-wrap");
+      if (wrap) wrap.style.display = "none";
+    }, 1500);
+  }
+
+  // 监听来自后端的 import-progress 事件
+  if (window.__TAURI__.event) {
+    window.__TAURI__.event.listen("import-progress", (ev) => {
+      const p = ev.payload;
+      if (p && p.total) {
+        updateProgressBar(p.current, p.total, p.current_name);
+      }
+    });
+
+    // 监听拖拽进窗口的原生事件
+    window.__TAURI__.event.listen("tauri://drag-enter", () => {
+      document.getElementById("drop-overlay").classList.add("active");
+    });
+    window.__TAURI__.event.listen("tauri://drag-leave", () => {
+      document.getElementById("drop-overlay").classList.remove("active");
+    });
+    window.__TAURI__.event.listen("tauri://drag-drop", async (ev) => {
+      document.getElementById("drop-overlay").classList.remove("active");
+      const paths = ev.payload.paths;
+      if (paths && paths.length) {
+        showToast(`已拖入 ${paths.length} 个文件，正在后台导入...`);
+        const statusBox = document.getElementById("import-status-box");
+        try {
+          const res = await invoke("import_files_from_paths", { paths });
+          showToast(res.message, null, 3000);
+          loadTags();
+          loadItems();
+        } catch (err) {
+          showToast("拖拽导入失败: " + err);
+        } finally {
+          hideProgressBar();
+        }
+      }
+    });
+  }
+
   // --- 导入逻辑 ---
   async function loadDetectedPlatforms() {
     const listEl = document.getElementById("detected-platforms-list");
@@ -964,6 +1092,7 @@
           const statusBox = document.getElementById("import-status-box");
           statusBox.textContent = `正在扫描并上传 ${it.name}...`;
           try {
+            updateProgressBar(0, it.count, it.name);
             const res = await invoke("run_platform_import", { dirPath: it.path, platform: it.id });
             statusBox.textContent = res.message;
             showToast("导入成功！");
@@ -975,6 +1104,7 @@
           } finally {
             btn.disabled = false;
             btn.textContent = "一键导入";
+            hideProgressBar();
           }
         };
         listEl.appendChild(row);
@@ -1015,6 +1145,7 @@
     } finally {
       btn.disabled = false;
       btn.textContent = "选择并上传本地图片";
+      hideProgressBar();
     }
   };
 
