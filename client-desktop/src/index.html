@@ -33,24 +33,55 @@
   /* 顶部紧凑工具栏与搜索框 */
   header {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
+    padding: 8px 12px;
     background: #181a22;
     border-bottom: 1px solid var(--line);
     cursor: move;
   }
   .win-title {
     font-weight: 600;
-    font-size: 12px;
+    font-size: 13px;
+    color: var(--fg);
+    letter-spacing: 0.5px;
+  }
+  .header-actions {
+    display: flex;
+    gap: 4px;
+    -webkit-app-region: no-drag;
+  }
+  .btn-icon {
+    background: transparent;
+    border: none;
     color: var(--mut);
-    margin-right: 4px;
-    white-space: nowrap;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .btn-icon:hover {
+    color: var(--fg);
+    background: #282b37;
+  }
+  .btn-close:hover {
+    background: #e53e3e !important;
+    color: #fff !important;
+  }
+
+  /* 标题下方的专属搜索栏 */
+  .search-container {
+    padding: 8px 12px;
+    background: #161820;
+    border-bottom: 1px solid var(--line);
   }
   .search-wrap {
-    flex: 1;
     position: relative;
-    -webkit-app-region: no-drag;
+    width: 100%;
   }
   #search {
     width: 100%;
@@ -74,32 +105,6 @@
     color: var(--mut);
     font-size: 12px;
     pointer-events: none;
-  }
-
-  .header-actions {
-    display: flex;
-    gap: 4px;
-    -webkit-app-region: no-drag;
-  }
-  .btn-icon {
-    background: transparent;
-    border: none;
-    color: var(--mut);
-    cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 4px;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .btn-icon:hover {
-    color: var(--fg);
-    background: #282b37;
-  }
-  .btn-close:hover {
-    background: #e53e3e !important;
-    color: #fff !important;
   }
 
   /* 标签胶囊栏 */
@@ -241,17 +246,21 @@
 <body>
 
 <header>
-  <span class="win-title">Mojinest</span>
+  <span class="win-title">Mojinest 贴图小窝</span>
+  <div class="header-actions">
+    <button class="btn-icon" id="btn-refresh" title="刷新">🔄</button>
+    <button class="btn-icon" id="btn-settings-open" title="客户端设置">⚙️</button>
+    <button class="btn-icon btn-close" id="btn-hide" title="收起 (Esc)">✕</button>
+  </div>
+</header>
+
+<!-- 搜索框位于标题栏正下方 -->
+<div class="search-container">
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
     <input id="search" placeholder="搜表情名、标签、文字、情绪..." autofocus>
   </div>
-  <div class="header-actions">
-    <button class="btn-icon" id="btn-refresh" title="刷新">🔄</button>
-    <button class="btn-icon" id="btn-settings" title="Web后台">🌐</button>
-    <button class="btn-icon btn-close" id="btn-hide" title="收起 (Esc)">✕</button>
-  </div>
-</header>
+</div>
 
 <div id="tag-bar">
   <div class="tag-pill active" data-tag="">全部</div>
@@ -268,6 +277,37 @@
 </footer>
 
 <div id="toast"></div>
+
+<!-- 设置模态窗口 -->
+<div id="settings-modal" style="display:none; position:fixed; inset:0; background:rgba(10,12,16,0.85); z-index:100; backdrop-filter:blur(3px); align-items:center; justify-content:center;">
+  <div style="background:#1c1e27; border:1px solid #323646; border-radius:10px; width:340px; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:14px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2b2f3d; padding-bottom:8px;">
+      <span style="font-weight:600; font-size:14px; color:#fff;">⚙️ 客户端偏好设置</span>
+      <button id="btn-close-settings" style="background:transparent; border:none; color:#8e94a5; cursor:pointer; font-size:14px;">✕</button>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <label style="font-size:11px; color:#8e94a5;">服务端地址 (Server URL)</label>
+      <input id="cfg-server-url" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <label style="font-size:11px; color:#8e94a5;">访问令牌 (Auth Token)</label>
+      <input id="cfg-token" type="password" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <label style="font-size:11px; color:#8e94a5;">全局呼出快捷键 (Hotkey)</label>
+      <input id="cfg-hotkey" placeholder="例如 Ctrl+Alt+E" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
+      <span style="font-size:10px; color:#6b7280;">修改后立即生效</span>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+      <button id="btn-cancel-settings" style="background:#2b2f3d; border:none; color:#cbd5e1; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px;">取消</button>
+      <button id="btn-save-settings" style="background:#4f80ff; border:none; color:#fff; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">保存并生效</button>
+    </div>
+  </div>
+</div>
 
 <script>
   const { invoke } = window.__TAURI__.core;
@@ -409,10 +449,46 @@
     loadItems();
   };
 
-  document.getElementById("btn-settings").onclick = () => {
-    // 快捷切换或打开浏览器设置
-    invoke("open_web_browser", { url: serverConfig.server_url });
+  function openSettings() {
+    document.getElementById("cfg-server-url").value = serverConfig.server_url || "";
+    document.getElementById("cfg-token").value = serverConfig.token || "";
+    document.getElementById("cfg-hotkey").value = serverConfig.hotkey || "Ctrl+Alt+E";
+    const modal = document.getElementById("settings-modal");
+    modal.style.display = "flex";
+  }
+
+  function closeSettings() {
+    document.getElementById("settings-modal").style.display = "none";
+  }
+
+  document.getElementById("btn-settings-open").onclick = openSettings;
+  document.getElementById("btn-close-settings").onclick = closeSettings;
+  document.getElementById("btn-cancel-settings").onclick = closeSettings;
+
+  document.getElementById("btn-save-settings").onclick = async () => {
+    const newCfg = {
+      server_url: document.getElementById("cfg-server-url").value.trim(),
+      token: document.getElementById("cfg-token").value.trim(),
+      hotkey: document.getElementById("cfg-hotkey").value.trim() || "Ctrl+Alt+E"
+    };
+    try {
+      await invoke("save_desktop_config", { cfg: newCfg });
+      serverConfig = newCfg;
+      closeSettings();
+      showToast("设置已保存并生效！");
+      loadTags();
+      loadItems();
+    } catch (err) {
+      showToast("保存失败: " + err);
+    }
   };
+
+  // 监听来自托盘右键菜单的“打开设置”事件
+  if (window.__TAURI__.event) {
+    window.__TAURI__.event.listen("open-settings", () => {
+      openSettings();
+    });
+  }
 
   document.getElementById("btn-hide").onclick = () => {
     invoke("hide_window");

@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use std::fs;
 use std::path::PathBuf;
 use tauri::menu::{Menu, MenuItem};
-use tauri::tray::{TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, PhysicalPosition, Window};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, Window};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -23,7 +23,7 @@ impl Default for DesktopConfig {
         Self {
             server_url: "http://192.168.1.4:18642".into(),
             token: "mojinest-test-2026".into(),
-            hotkey: "Ctrl+Alt+M".into(),
+            hotkey: "Ctrl+Alt+E".into(),
         }
     }
 }
@@ -55,6 +55,34 @@ fn load_config() -> DesktopConfig {
 #[tauri::command]
 fn get_desktop_config() -> DesktopConfig {
     load_config()
+}
+
+#[tauri::command]
+fn save_desktop_config(app: AppHandle, cfg: DesktopConfig) -> Result<(), String> {
+    let p = config_path();
+    let ser = serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+    fs::write(&p, ser).map_err(|e| e.to_string())?;
+
+    // 重新注册全局快捷键
+    if let Ok(s) = cfg.hotkey.parse::<Shortcut>() {
+        let _ = app.global_shortcut().unregister_all();
+        let h_clone = app.clone();
+        let _ = app.global_shortcut().on_shortcut(s, move |_app, _shortcut, event| {
+            if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                toggle_picker_window(&h_clone);
+            }
+        });
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn open_settings_modal(window: Window) {
+    window.emit("open-settings", ()).ok();
+    window.show().ok();
+    window.unminimize().ok();
+    window.set_focus().ok();
 }
 
 #[tauri::command]
@@ -106,7 +134,16 @@ async fn copy_item_to_clipboard(file_url: String, _mime_type: String) -> Result<
     Ok(())
 }
 
-// 弹出浮窗（用户呼出时保持原位或居中，不再每次篡改位置到屏幕死角）
+// 显示主面板
+fn show_picker_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        window.show().ok();
+        window.unminimize().ok();
+        window.set_focus().ok();
+    }
+}
+
+// 弹出或收起浮窗
 fn toggle_picker_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         if window.is_visible().unwrap_or(false) {
@@ -127,6 +164,8 @@ fn main() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             get_desktop_config,
+            save_desktop_config,
+            open_settings_modal,
             hide_window,
             start_drag,
             open_web_browser,
@@ -136,26 +175,42 @@ fn main() {
             let handle = app.handle().clone();
 
             // 1. 初始化系统托盘图标
-            let quit_i = MenuItem::with_id(app, "quit", "退出 Mojinest", true, None::<&str>)?;
-            let show_i = MenuItem::with_id(app, "show", "呼出表情面板", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+            let show_i = MenuItem::with_id(app, "show", "显示", true, None::<&str>)?;
+            let settings_i = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_i, &settings_i, &quit_i])?;
 
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
+                .show_menu_on_left_click(false) // 关键：左键点击不要触发右键上下文菜单，右键才弹菜单
                 .tooltip("Mojinest 贴图小窝")
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "quit" => {
                         std::process::exit(0);
                     }
                     "show" => {
-                        toggle_picker_window(app);
+                        show_picker_window(app);
+                    }
+                    "settings" => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            win.emit("open-settings", ()).ok();
+                            win.show().ok();
+                            win.unminimize().ok();
+                            win.set_focus().ok();
+                        }
                     }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { .. } = event {
-                        toggle_picker_window(tray.app_handle());
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        // 只有左键鼠标按键完全释放 (Up) 时才执行显示，避免瞬间触发两次导致立即消失
+                        show_picker_window(tray.app_handle());
                     }
                 })
                 .build(app)?;
