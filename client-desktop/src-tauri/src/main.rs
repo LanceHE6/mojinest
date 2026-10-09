@@ -180,7 +180,7 @@ fn open_web_browser(url: String) {
 }
 
 #[tauri::command]
-async fn copy_item_to_clipboard(file_url: String, ext: String, mime_type: String) -> Result<(), String> {
+async fn copy_item_to_clipboard(file_url: String, ext: String, mime_type: String, scale_for_chat: bool) -> Result<(), String> {
     let client = reqwest::Client::new();
     let resp = client
         .get(&file_url)
@@ -195,20 +195,39 @@ async fn copy_item_to_clipboard(file_url: String, ext: String, mime_type: String
 
     let is_gif = ext.eq_ignore_ascii_case("gif") || mime_type.contains("gif") || bytes.starts_with(b"GIF");
 
+    // 如果指定缩放模式（左键单击默认启用），且图片为静态图且长边超过 240px，等比缩放至标准表情包大小
+    let final_bytes = if scale_for_chat && !is_gif {
+        if let Ok(dyn_img) = image::load_from_memory(&bytes) {
+            let (w, h) = (dyn_img.width(), dyn_img.height());
+            let max_dim = w.max(h);
+            if max_dim > 240 {
+                let scaled = dyn_img.resize(240, 240, image::imageops::FilterType::Lanczos3);
+                let mut buf = std::io::Cursor::new(Vec::new());
+                if scaled.write_to(&mut buf, image::ImageFormat::Png).is_ok() {
+                    buf.into_inner()
+                } else {
+                    bytes.to_vec()
+                }
+            } else {
+                bytes.to_vec()
+            }
+        } else {
+            bytes.to_vec()
+        }
+    } else {
+        bytes.to_vec()
+    };
+
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
         use std::process::Command;
 
-        // 在 Windows 上，无论是 GIF 动图还是静态表情包（PNG/JPG/WEBP），
-        // 微信/QQ 对纯剪贴板位图 (DIB) 都会当作常规高清大图粘贴并放大展示；
-        // 而通过同时设置 FileDropList 文件路径与 Image 句柄，微信/QQ 就能将其识别为「标准表情文件」，
-        // 从而保持与聊天软件内部表情完全一致的原生尺寸和渲染逻辑！
         let temp_dir = std::env::temp_dir().join("mojinest");
         fs::create_dir_all(&temp_dir).ok();
-        let safe_ext = if is_gif { "gif" } else if ext.is_empty() { "png" } else { &ext };
+        let safe_ext = if is_gif { "gif" } else { "png" };
         let temp_file = temp_dir.join(format!("moji_{}.{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(), safe_ext));
-        fs::write(&temp_file, &bytes).map_err(|e| format!("写临时图片失败: {}", e))?;
+        fs::write(&temp_file, &final_bytes).map_err(|e| format!("写临时图片失败: {}", e))?;
 
         let ps_script = format!(
             r#"Add-Type -AssemblyName System.Windows.Forms, System.Drawing; $d = New-Object System.Windows.Forms.DataObject; $files = New-Object System.Collections.Specialized.StringCollection; $files.Add('{0}'); $d.SetFileDropList($files); $img = [System.Drawing.Image]::FromFile('{0}'); $d.SetImage($img); [System.Windows.Forms.Clipboard]::SetDataObject($d, $true); Write-Output 'ok';"#,
@@ -233,7 +252,7 @@ async fn copy_item_to_clipboard(file_url: String, ext: String, mime_type: String
 
     // 非 Windows 平台使用系统原生剪贴板位图
     let mut clipboard = Clipboard::new().map_err(|e| format!("打开系统剪贴板失败: {}", e))?;
-    let img = image::load_from_memory(&bytes).map_err(|e| format!("图片解码失败: {}", e))?;
+    let img = image::load_from_memory(&final_bytes).map_err(|e| format!("图片解码失败: {}", e))?;
     let rgba = img.to_rgba8();
     let (width, height) = rgba.dimensions();
 

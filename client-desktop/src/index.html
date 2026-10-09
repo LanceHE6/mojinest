@@ -683,11 +683,12 @@
       card.onclick = async () => {
         try {
           showToast("已选择，正在写入剪贴板...");
-          // 调用 Tauri Rust 后端直接下载并写入剪贴板
+          // 左键单击：启用 scale_for_chat: true，按聊天标准表情尺寸缩放
           await invoke("copy_item_to_clipboard", {
             fileUrl: fileUrl,
             ext: it.ext || "gif",
-            mimeType: it.mime || "image/gif"
+            mimeType: it.mime || "image/gif",
+            scaleForChat: true
           });
           // 记录使用频次
           apiFetch(`/api/items/${it.id}/use`, { method: "POST" }).catch(() => {});
@@ -740,17 +741,18 @@
     modal.style.display = "flex";
   };
 
-  // 2. 复制到剪贴板
+  // 2. 复制到剪贴板（右键：保持原图高清尺寸不变）
   document.getElementById("ctx-copy").onclick = async () => {
     if (!activeContextItem) return;
     const it = activeContextItem;
     closeContextMenu();
     try {
-      showToast("正在写入剪贴板...");
+      showToast("正在复制原图到剪贴板...");
       await invoke("copy_item_to_clipboard", {
         fileUrl: it.fileUrl,
         ext: it.ext || "gif",
-        mimeType: it.mime || "image/gif"
+        mimeType: it.mime || "image/gif",
+        scaleForChat: false
       });
       apiFetch(`/api/items/${it.id}/use`, { method: "POST" }).catch(() => {});
       await invoke("hide_window");
