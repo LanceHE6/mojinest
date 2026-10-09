@@ -184,7 +184,7 @@ fn main() {
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .show_menu_on_left_click(false) // 关键：左键点击不要触发右键上下文菜单，右键才弹菜单
-                .tooltip("Mojinest 贴图小窝")
+                .tooltip("Mojinest")
                 .on_menu_event(move |app, event| match event.id.as_ref() {
                     "quit" => {
                         std::process::exit(0);
@@ -194,7 +194,7 @@ fn main() {
                     }
                     "settings" => {
                         if let Some(win) = app.get_webview_window("main") {
-                            win.emit("open-settings", ()).ok();
+                            win.eval("window.__openSettingsModal && window.__openSettingsModal()").ok();
                             win.show().ok();
                             win.unminimize().ok();
                             win.set_focus().ok();

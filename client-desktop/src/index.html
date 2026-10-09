@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mojinest 贴图小窝</title>
+<title>Mojinest</title>
 <style>
   :root {
     color-scheme: dark;
@@ -246,7 +246,7 @@
 <body>
 
 <header>
-  <span class="win-title">Mojinest 贴图小窝</span>
+  <span class="win-title">Mojinest</span>
   <div class="header-actions">
     <button class="btn-icon" id="btn-refresh" title="刷新">🔄</button>
     <button class="btn-icon" id="btn-settings-open" title="客户端设置">⚙️</button>
@@ -456,6 +456,9 @@
     const modal = document.getElementById("settings-modal");
     modal.style.display = "flex";
   }
+
+  // 挂载到全局方便 Rust 原生直接可靠调用
+  window.__openSettingsModal = openSettings;
 
   function closeSettings() {
     document.getElementById("settings-modal").style.display = "none";
