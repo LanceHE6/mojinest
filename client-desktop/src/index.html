@@ -401,6 +401,26 @@
   <div class="menu-item danger" id="ctx-delete">🗑️ 删除</div>
 </div>
 
+<!-- 重命名模态窗口 -->
+<div id="rename-modal" style="display:none; position:fixed; inset:0; background:rgba(10,12,16,0.85); z-index:210; backdrop-filter:blur(3px); align-items:center; justify-content:center;">
+  <div style="background:#1c1e27; border:1px solid #323646; border-radius:10px; width:320px; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:12px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2b2f3d; padding-bottom:8px;">
+      <span style="font-weight:600; font-size:13px; color:#fff;">✏️ 重命名表情包</span>
+      <button id="btn-close-rename" style="background:transparent; border:none; color:#8e94a5; cursor:pointer; font-size:14px;">✕</button>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <label style="font-size:11px; color:#8e94a5;">表情名称</label>
+      <input id="rename-input" placeholder="输入新的表情包名称" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:7px 10px; font-size:12px; outline:none;">
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+      <button id="btn-cancel-rename" style="background:#2b2f3d; border:none; color:#cbd5e1; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px;">取消</button>
+      <button id="btn-confirm-rename" style="background:#4f80ff; border:none; color:#fff; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 设置模态窗口 -->
 <div id="settings-modal" style="display:none; position:fixed; inset:0; background:rgba(10,12,16,0.85); z-index:100; backdrop-filter:blur(3px); align-items:center; justify-content:center;">
   <div style="background:#1c1e27; border:1px solid #323646; border-radius:10px; width:340px; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:14px;">
@@ -564,10 +584,26 @@
       const fileUrl = `${base}/api/files/${it.sha256}?ext=${it.ext}&token=${encodeURIComponent(serverConfig.token)}`;
 
       card.innerHTML = `
-        <img src="${thumbUrl}" loading="lazy" alt="${it.name}">
+        <img src="${thumbUrl}" data-thumb="${thumbUrl}" data-full="${fileUrl}" loading="lazy" alt="${it.name}">
         ${it.animated ? '<span class="anim-badge">GIF</span>' : ''}
         <span class="card-label">${it.name || it.ai_description || '表情'}</span>
       `;
+
+      // GIF 图光标悬停时播放动图，移出时恢复首帧缩略图
+      if (it.animated) {
+        card.onmouseenter = () => {
+          const img = card.querySelector("img");
+          if (img && img.dataset.full) {
+            img.src = img.dataset.full;
+          }
+        };
+        card.onmouseleave = () => {
+          const img = card.querySelector("img");
+          if (img && img.dataset.thumb) {
+            img.src = img.dataset.thumb;
+          }
+        };
+      }
 
       card.onclick = async () => {
         try {
@@ -575,7 +611,8 @@
           // 调用 Tauri Rust 后端直接下载并写入剪贴板
           await invoke("copy_item_to_clipboard", {
             fileUrl: fileUrl,
-            mimeType: it.mime || "image/png"
+            ext: it.ext || "gif",
+            mimeType: it.mime || "image/gif"
           });
           // 记录使用频次
           apiFetch(`/api/items/${it.id}/use`, { method: "POST" }).catch(() => {});
@@ -637,7 +674,8 @@
       showToast("正在写入剪贴板...");
       await invoke("copy_item_to_clipboard", {
         fileUrl: it.fileUrl,
-        mimeType: it.mime || "image/png"
+        ext: it.ext || "gif",
+        mimeType: it.mime || "image/gif"
       });
       apiFetch(`/api/items/${it.id}/use`, { method: "POST" }).catch(() => {});
       await invoke("hide_window");
@@ -646,32 +684,57 @@
     }
   };
 
-  // 3. 重命名表情包
-  document.getElementById("ctx-rename").onclick = async () => {
+  // 3. 重命名表情包（原生定制深色模态窗口）
+  document.getElementById("ctx-rename").onclick = () => {
     if (!activeContextItem) return;
     const it = activeContextItem;
     closeContextMenu();
-    const oldName = it.name || "";
-    const newName = window.prompt("请输入新的表情包名称：", oldName);
-    if (newName === null || newName.trim() === "" || newName.trim() === oldName) {
-      return;
-    }
-    try {
-      const base = serverConfig.server_url.replace(/\/+$/, "");
-      const res = await fetch(`${base}/api/items/${it.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
-        },
-        body: JSON.stringify({ name: newName.trim() })
-      });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      showToast("重命名成功！");
-      loadItems();
-    } catch (err) {
-      showToast("重命名失败: " + err);
-    }
+    document.getElementById("rename-input").value = it.name || "";
+    const modal = document.getElementById("rename-modal");
+    modal.style.display = "flex";
+    setTimeout(() => {
+      const inp = document.getElementById("rename-input");
+      inp.focus();
+      inp.select();
+    }, 50);
+
+    const onConfirm = async () => {
+      const newName = document.getElementById("rename-input").value.trim();
+      if (!newName || newName === it.name) {
+        modal.style.display = "none";
+        return;
+      }
+      try {
+        const base = serverConfig.server_url.replace(/\/+$/, "");
+        const res = await fetch(`${base}/api/items/${it.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+          },
+          body: JSON.stringify({ name: newName })
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        modal.style.display = "none";
+        showToast("重命名成功！");
+        loadItems();
+      } catch (err) {
+        showToast("重命名失败: " + err);
+      }
+    };
+
+    document.getElementById("btn-confirm-rename").onclick = onConfirm;
+    document.getElementById("rename-input").onkeydown = (e) => {
+      if (e.key === "Enter") onConfirm();
+      if (e.key === "Escape") modal.style.display = "none";
+    };
+  };
+
+  document.getElementById("btn-close-rename").onclick = () => {
+    document.getElementById("rename-modal").style.display = "none";
+  };
+  document.getElementById("btn-cancel-rename").onclick = () => {
+    document.getElementById("rename-modal").style.display = "none";
   };
 
   // 4. 删除表情包（5秒内可撤回）
