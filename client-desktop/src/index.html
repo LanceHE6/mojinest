@@ -56,13 +56,21 @@
     border: none;
     color: var(--mut);
     cursor: pointer;
-    padding: 4px 6px;
+    padding: 4px;
     border-radius: 4px;
-    font-size: 13px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s;
+  }
+  .btn-icon svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 36px;
   }
   .btn-icon:hover {
     color: var(--fg);
@@ -103,8 +111,19 @@
     top: 50%;
     transform: translateY(-50%);
     color: var(--mut);
-    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     pointer-events: none;
+  }
+  .search-icon svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 36px;
   }
 
   /* 标签胶囊栏 */
@@ -262,6 +281,16 @@
     gap: 8px;
     transition: background 0.15s;
   }
+  .menu-item svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 36px;
+    flex-shrink: 0;
+  }
   .menu-item:hover {
     background: #2b3042;
   }
@@ -325,17 +354,27 @@
 <header>
   <span class="win-title">Mojinest</span>
   <div class="header-actions">
-    <button class="btn-icon" id="btn-import-open" title="导入表情">📥</button>
-    <button class="btn-icon" id="btn-refresh" title="刷新">🔄</button>
-    <button class="btn-icon" id="btn-settings-open" title="客户端设置">⚙️</button>
-    <button class="btn-icon btn-close" id="btn-hide" title="收起 (Esc)">✕</button>
+    <button class="btn-icon" id="btn-import-open" title="导入表情">
+      <svg viewBox="0 0 512 512"><path d="M320,367.79,256,431.79l-64-64"/><line x1="256" y1="416" x2="256" y2="272"/><path d="M380.93,207.74A112,112,0,0,0,163.68,172a110.4,110.4,0,0,0-5.83,28.81A104,104,0,0,0,48,304c0,57.34,46.66,104,104,104h32"/><path d="M328,408h36a88,88,0,0,0,88-88c0-41.84-29.39-76.71-68.84-85.22"/></svg>
+    </button>
+    <button class="btn-icon" id="btn-refresh" title="刷新">
+      <svg viewBox="0 0 512 512"><path d="M320,146s24.36-12-64-12a160,160,0,1,0,160,160"/><polyline points="256 58 336 138 256 218"/></svg>
+    </button>
+    <button class="btn-icon" id="btn-settings-open" title="客户端设置">
+      <svg viewBox="0 0 512 512"><path d="M262.29,192.31a64,64,0,1,0,57.4,57.4A64.13,64.13,0,0,0,262.29,192.31ZM256,288a32,32,0,1,1,32-32A32,32,0,0,1,256,288Z"/><path d="M416.39,222.75l-42.67-6.93a144.38,144.38,0,0,0-12-28.82l23.51-36.21a16,16,0,0,0-2.31-20.73L354.34,101.5a16,16,0,0,0-20.73-2.31l-36.21,23.51a144.38,144.38,0,0,0-28.82-12L261.65,68a16,16,0,0,0-15.82-13.43H210.17A16,16,0,0,0,194.35,68l-6.93,42.67a144.38,144.38,0,0,0-28.82,12L122.39,99.19a16,16,0,0,0-20.73,2.31L73.1,130.06a16,16,0,0,0-2.31,20.73l23.51,36.21a144.38,144.38,0,0,0-12,28.82l-42.67,6.93A16,16,0,0,0,26.2,238.57v34.86a16,16,0,0,0,13.43,15.82l42.67,6.93a144.38,144.38,0,0,0,12,28.82L70.79,361.21a16,16,0,0,0,2.31,20.73l28.56,28.56a16,16,0,0,0,20.73,2.31l36.21-23.51a144.38,144.38,0,0,0,28.82,12l6.93,42.67a16,16,0,0,0,15.82,13.43h35.66a16,16,0,0,0,15.82-13.43l6.93-42.67a144.38,144.38,0,0,0,28.82-12l36.21,23.51a16,16,0,0,0,20.73-2.31l28.56-28.56a16,16,0,0,0,2.31-20.73l-23.51-36.21a144.38,144.38,0,0,0,12-28.82l42.67-6.93a16,16,0,0,0,13.43-15.82V238.57A16,16,0,0,0,416.39,222.75Z"/></svg>
+    </button>
+    <button class="btn-icon btn-close" id="btn-hide" title="收起 (Esc)">
+      <svg viewBox="0 0 512 512"><line x1="368" y1="368" x2="144" y2="144"/><line x1="368" y1="144" x2="144" y2="368"/></svg>
+    </button>
   </div>
 </header>
 
 <!-- 搜索框位于标题栏正下方 -->
 <div class="search-container">
   <div class="search-wrap">
-    <span class="search-icon">🔍</span>
+    <span class="search-icon">
+      <svg viewBox="0 0 512 512"><path d="M221.09,64A157.09,157.09,0,1,0,378.18,221.09,157.1,157.1,0,0,0,221.09,64Z"/><line x1="338.29" y1="338.29" x2="448" y2="448"/></svg>
+    </span>
     <input id="search" placeholder="搜表情名、标签、文字、情绪..." autofocus>
   </div>
 </div>
@@ -395,10 +434,22 @@
 
 <!-- 右键上下文菜单 -->
 <div id="context-menu">
-  <div class="menu-item" id="ctx-preview">🔍 查看大图</div>
-  <div class="menu-item" id="ctx-copy">📋 复制</div>
-  <div class="menu-item" id="ctx-rename">✏️ 重命名</div>
-  <div class="menu-item danger" id="ctx-delete">🗑️ 删除</div>
+  <div class="menu-item" id="ctx-preview">
+    <svg viewBox="0 0 512 512"><path d="M255.66,112c-77.94,0-157.89,45.11-220.83,135.33a16,16,0,0,0-.27,17.77C82.92,340.8,161.8,400,255.66,400c92.84,0,173.34-59.38,221.79-135.25a16.14,16.14,0,0,0,0-17.47C428.89,172.26,348,112,255.66,112Z"/><circle cx="256" cy="256" r="80"/></svg>
+    <span>查看大图</span>
+  </div>
+  <div class="menu-item" id="ctx-copy">
+    <svg viewBox="0 0 512 512"><rect x="128" y="128" width="336" height="336" rx="57" ry="57"/><path d="M383.5,128l.5-24a56.16,56.16,0,0,0-56-56H112a64.19,64.19,0,0,0-64,64V328a56.16,56.16,0,0,0,56,56h24"/></svg>
+    <span>复制</span>
+  </div>
+  <div class="menu-item" id="ctx-rename">
+    <svg viewBox="0 0 512 512"><polygon points="358.62 129.28 86.49 402.08 70 442 109.92 425.51 382.72 153.38 358.62 129.28"/><path d="M413.83,99.08l17.79-17.79a28.28,28.28,0,0,0,0-40L407.48,17.15a28.28,28.28,0,0,0-40,0L349.7,34.94Z"/></svg>
+    <span>重命名</span>
+  </div>
+  <div class="menu-item danger" id="ctx-delete">
+    <svg viewBox="0 0 512 512"><path d="M112,112l20,320c.95,18.49,14.4,32,32,32H348c17.67,0,30.87-13.51,32-32l20-320"/><line x1="80" y1="112" x2="432" y2="112"/><path d="M192,112V72h128v40"/></svg>
+    <span>删除</span>
+  </div>
 </div>
 
 <!-- 重命名模态窗口 -->

@@ -200,37 +200,38 @@ async fn copy_item_to_clipboard(file_url: String, ext: String, mime_type: String
         use std::os::windows::process::CommandExt;
         use std::process::Command;
 
-        // 如果是 GIF 动图，将其存为临时文件并通过 Windows DataObject 同时写入 FileDrop 和 Image，
-        // 这样微信、QQ、企业微信、浏览器在 Ctrl+V 时能 100% 作为原生完整动图发送！
-        if is_gif {
-            let temp_dir = std::env::temp_dir().join("mojinest");
-            fs::create_dir_all(&temp_dir).ok();
-            let temp_file = temp_dir.join(format!("moji_{}.gif", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()));
-            fs::write(&temp_file, &bytes).map_err(|e| format!("写临时动图失败: {}", e))?;
+        // 在 Windows 上，无论是 GIF 动图还是静态表情包（PNG/JPG/WEBP），
+        // 微信/QQ 对纯剪贴板位图 (DIB) 都会当作常规高清大图粘贴并放大展示；
+        // 而通过同时设置 FileDropList 文件路径与 Image 句柄，微信/QQ 就能将其识别为「标准表情文件」，
+        // 从而保持与聊天软件内部表情完全一致的原生尺寸和渲染逻辑！
+        let temp_dir = std::env::temp_dir().join("mojinest");
+        fs::create_dir_all(&temp_dir).ok();
+        let safe_ext = if is_gif { "gif" } else if ext.is_empty() { "png" } else { &ext };
+        let temp_file = temp_dir.join(format!("moji_{}.{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis(), safe_ext));
+        fs::write(&temp_file, &bytes).map_err(|e| format!("写临时图片失败: {}", e))?;
 
-            let ps_script = format!(
-                r#"Add-Type -AssemblyName System.Windows.Forms, System.Drawing; $d = New-Object System.Windows.Forms.DataObject; $files = New-Object System.Collections.Specialized.StringCollection; $files.Add('{0}'); $d.SetFileDropList($files); $img = [System.Drawing.Image]::FromFile('{0}'); $d.SetImage($img); [System.Windows.Forms.Clipboard]::SetDataObject($d, $true); Write-Output 'ok';"#,
-                temp_file.to_string_lossy().replace('\\', "\\\\")
-            );
+        let ps_script = format!(
+            r#"Add-Type -AssemblyName System.Windows.Forms, System.Drawing; $d = New-Object System.Windows.Forms.DataObject; $files = New-Object System.Collections.Specialized.StringCollection; $files.Add('{0}'); $d.SetFileDropList($files); $img = [System.Drawing.Image]::FromFile('{0}'); $d.SetImage($img); [System.Windows.Forms.Clipboard]::SetDataObject($d, $true); Write-Output 'ok';"#,
+            temp_file.to_string_lossy().replace('\\', "\\\\")
+        );
 
-            let out = Command::new("powershell")
-                .arg("-NoProfile")
-                .arg("-NonInteractive")
-                .arg("-STA")
-                .arg("-Command")
-                .arg(&ps_script)
-                .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                .output()
-                .map_err(|e| format!("调用剪贴板失败: {}", e))?;
+        let out = Command::new("powershell")
+            .arg("-NoProfile")
+            .arg("-NonInteractive")
+            .arg("-STA")
+            .arg("-Command")
+            .arg(&ps_script)
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .output()
+            .map_err(|e| format!("调用剪贴板失败: {}", e))?;
 
-            if !String::from_utf8_lossy(&out.stdout).to_lowercase().contains("ok") {
-                return Err(format!("动图剪贴板设置未确认: {}", String::from_utf8_lossy(&out.stderr)));
-            }
-            return Ok(());
+        if !String::from_utf8_lossy(&out.stdout).to_lowercase().contains("ok") {
+            return Err(format!("剪贴板设置未确认: {}", String::from_utf8_lossy(&out.stderr)));
         }
+        return Ok(());
     }
 
-    // 静态图 (PNG/JPG/WEBP) 使用原生 arboard 直接写入剪贴板位图
+    // 非 Windows 平台使用系统原生剪贴板位图
     let mut clipboard = Clipboard::new().map_err(|e| format!("打开系统剪贴板失败: {}", e))?;
     let img = image::load_from_memory(&bytes).map_err(|e| format!("图片解码失败: {}", e))?;
     let rgba = img.to_rgba8();
