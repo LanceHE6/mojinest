@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="client-desktop/src-tauri/icons/128x128@2x.png" width="128" height="128" alt="Mojinest Logo">
+  <img src="icon.jpg" width="160" height="160" alt="Mojinest Logo">
 </p>
 
 # Mojinest
