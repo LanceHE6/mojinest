@@ -819,7 +819,7 @@ func (s *Server) handleThumb(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serveBlob(w http.ResponseWriter, r *http.Request, key, ct string, download bool) {
-	if u, _ := s.Store.URL(r.Context(), key); u != "" {
+	if u, _ := s.Store.URL(r.Context(), key); u != "" && s.Cfg.S3.PublicBase != "" {
 		http.Redirect(w, r, u, http.StatusFound)
 		return
 	}
