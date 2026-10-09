@@ -506,7 +506,10 @@
 
     <!-- 客户端基础配置 -->
     <div style="display:flex; flex-direction:column; gap:8px;">
-      <div style="font-size:12px; font-weight:600; color:#cbd5e1;">💻 客户端设置</div>
+      <div style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#cbd5e1;">
+        <svg style="width:14px; height:14px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><rect x="32" y="64" width="448" height="288" rx="32" ry="32"/><line x1="32" y1="288" x2="480" y2="288"/><path d="M192,352l-32,96h192l-32-96"/></svg>
+        <span>客户端设置</span>
+      </div>
       <div style="display:flex; flex-direction:column; gap:4px;">
         <label style="font-size:11px; color:#8e94a5;">服务端地址 (Server URL)</label>
         <input id="cfg-server-url" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
@@ -524,7 +527,10 @@
     <!-- 服务端存储方式设置 -->
     <div style="border-top:1px solid #2b2f3d; padding-top:10px; display:flex; flex-direction:column; gap:8px;">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-size:12px; font-weight:600; color:#cbd5e1;">☁️ 服务端存储方式</span>
+        <div style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#cbd5e1;">
+          <svg style="width:14px; height:14px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><path d="M400,240c-8.84,0-16,7.16-16,16a80,80,0,1,1-160,0c0-4.42,1.79-8.42,4.69-11.31C231.59,241.79,232,237.38,232,232a88,88,0,0,0-176,0c0,4.42,1.79,8.42,4.69,11.31C63.59,246.21,64,250.62,64,256a112,112,0,0,0,224,0"/><path d="M380.93,207.74A112,112,0,0,0,163.68,172a110.4,110.4,0,0,0-5.83,28.81A104,104,0,0,0,48,304c0,57.34,46.66,104,104,104H400a96,96,0,0,0,0-192Z"/></svg>
+          <span>服务端存储方式</span>
+        </div>
         <span id="storage-status-tag" style="font-size:10px; padding:2px 6px; border-radius:10px; background:#21242e; color:#4f80ff;">加载中...</span>
       </div>
 
