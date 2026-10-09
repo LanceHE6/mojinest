@@ -12,14 +12,15 @@
       {
         "title": "Mojinest",
         "label": "main",
-        "width": 380,
-        "height": 480,
-        "resizable": false,
+        "width": 420,
+        "height": 520,
+        "resizable": true,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "visible": false,
+        "skipTaskbar": false,
+        "visible": true,
+        "center": true,
         "shadow": true
       }
     ],

@@ -119,6 +119,7 @@ fn toggle_picker_window(app: &AppHandle) {
                 window.set_position(PhysicalPosition::new(x, y)).ok();
             }
             window.show().ok();
+            window.unminimize().ok();
             window.set_focus().ok();
         }
     }
@@ -164,25 +165,19 @@ fn main() {
                 .build(app)?;
 
             // 2. 注册全局快捷键 (默认 Ctrl+Alt+M)
-            let shortcut: Result<Shortcut, _> = cfg.hotkey.parse();
-            if let Ok(s) = shortcut {
-                let h_clone = handle.clone();
-                app.global_shortcut().on_shortcut(s, move |_app, _shortcut, _event| {
-                    toggle_picker_window(&h_clone);
-                })?;
+    let shortcut: Result<Shortcut, _> = cfg.hotkey.parse();
+    if let Ok(s) = shortcut {
+        let h_clone = handle.clone();
+        app.global_shortcut().on_shortcut(s, move |_app, _shortcut, event| {
+            if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                toggle_picker_window(&h_clone);
             }
+        })?;
+    }
 
-            // 3. 窗口失去焦点 (blur) 时自动隐藏，避免挡住聊天框
-            if let Some(win) = app.get_webview_window("main") {
-                let w_clone = win.clone();
-                win.on_window_event(move |event| {
-                    if let tauri::WindowEvent::Focused(focused) = event {
-                        if !focused {
-                            w_clone.hide().ok();
-                        }
-                    }
-                });
-            }
+            // 3. 窗口支持按 Esc 隐藏，避免无脑强行 blur 关窗
+            // 外部点击收起将在前端处理，方便更精确地判断
+            let _ = &app;
 
             Ok(())
         })
