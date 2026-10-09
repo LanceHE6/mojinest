@@ -248,6 +248,7 @@
 <header>
   <span class="win-title">Mojinest</span>
   <div class="header-actions">
+    <button class="btn-icon" id="btn-import-open" title="导入表情">📥</button>
     <button class="btn-icon" id="btn-refresh" title="刷新">🔄</button>
     <button class="btn-icon" id="btn-settings-open" title="客户端设置">⚙️</button>
     <button class="btn-icon btn-close" id="btn-hide" title="收起 (Esc)">✕</button>
@@ -275,6 +276,36 @@
   <span id="status-info">已就绪</span>
   <span id="count-info">0 张</span>
 </footer>
+
+<!-- 导入模态窗口 -->
+<div id="import-modal" style="display:none; position:fixed; inset:0; background:rgba(10,12,16,0.85); z-index:100; backdrop-filter:blur(3px); align-items:center; justify-content:center;">
+  <div style="background:#1c1e27; border:1px solid #323646; border-radius:10px; width:360px; max-height:85vh; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:14px; overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2b2f3d; padding-bottom:8px;">
+      <span style="font-weight:600; font-size:14px; color:#fff;">📥 批量导入表情</span>
+      <button id="btn-close-import" style="background:transparent; border:none; color:#8e94a5; cursor:pointer; font-size:14px;">✕</button>
+    </div>
+
+    <!-- 方式1：本地图片选择 -->
+    <div style="background:#232734; border:1px solid #323646; border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+      <div style="font-weight:600; font-size:12px; color:#e2e8f0;">📂 本地文件导入</div>
+      <div style="font-size:11px; color:#8e94a5;">从电脑相册或文件夹中选择图片文件（支持 PNG, GIF, JPG, WEBP）。</div>
+      <button id="btn-pick-files" style="background:#4f80ff; border:none; color:#fff; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:500; align-self:flex-start;">选择并上传本地图片</button>
+    </div>
+
+    <!-- 方式2：自动扫描社交平台 -->
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; font-size:12px; color:#e2e8f0;">🔍 自动检测聊天软件表情库</span>
+        <button id="btn-rescan-platforms" style="background:transparent; border:none; color:#4f80ff; cursor:pointer; font-size:11px;">重新扫描</button>
+      </div>
+      <div id="detected-platforms-list" style="display:flex; flex-direction:column; gap:6px;">
+        <div style="font-size:11px; color:#8e94a5;">正在检测本地 QQ / 微信 / 企业微信...</div>
+      </div>
+    </div>
+
+    <div id="import-status-box" style="font-size:11px; color:#8e94a5; border-top:1px solid #2b2f3d; padding-top:8px;"></div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -447,6 +478,88 @@
   document.getElementById("btn-refresh").onclick = () => {
     loadTags();
     loadItems();
+  };
+
+  // --- 导入逻辑 ---
+  async function loadDetectedPlatforms() {
+    const listEl = document.getElementById("detected-platforms-list");
+    listEl.innerHTML = '<div style="font-size:11px; color:#8e94a5;">正在检测本地 QQ / 微信 / 企业微信...</div>';
+    try {
+      const items = await invoke("get_detected_platforms");
+      if (!items || !items.length) {
+        listEl.innerHTML = '<div style="font-size:11px; color:#8e94a5;">未自动检测到本地常用缓存路径，可通过上方手动选文件导入。</div>';
+        return;
+      }
+      listEl.innerHTML = "";
+      items.forEach(it => {
+        const row = document.createElement("div");
+        row.style.cssText = "background:#232734; border:1px solid #323646; border-radius:6px; padding:8px 10px; display:flex; justify-content:space-between; align-items:center;";
+        row.innerHTML = `
+          <div style="display:flex; flex-direction:column; overflow:hidden; margin-right:8px;">
+            <span style="font-size:11px; font-weight:600; color:#cbd5e1; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${it.name}</span>
+            <span style="font-size:10px; color:#6b7280; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${it.count} 个候选文件</span>
+          </div>
+          <button class="btn-import-run" style="background:#2b2f3d; border:1px solid #3d4254; color:#fff; font-size:11px; padding:4px 10px; border-radius:4px; cursor:pointer; white-space:nowrap;">一键导入</button>
+        `;
+        row.querySelector(".btn-import-run").onclick = async (e) => {
+          const btn = e.target;
+          btn.disabled = true;
+          btn.textContent = "导入中...";
+          const statusBox = document.getElementById("import-status-box");
+          statusBox.textContent = `正在扫描并上传 ${it.name}...`;
+          try {
+            const res = await invoke("run_platform_import", { dirPath: it.path, platform: it.id });
+            statusBox.textContent = res.message;
+            showToast("导入成功！");
+            loadTags();
+            loadItems();
+          } catch (err) {
+            statusBox.textContent = "导入失败: " + err;
+            showToast("导入失败: " + err);
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "一键导入";
+          }
+        };
+        listEl.appendChild(row);
+      });
+    } catch (e) {
+      listEl.innerHTML = `<div style="font-size:11px; color:#e53e3e;">检测失败: ${e}</div>`;
+    }
+  }
+
+  document.getElementById("btn-import-open").onclick = () => {
+    document.getElementById("import-modal").style.display = "flex";
+    loadDetectedPlatforms();
+  };
+  document.getElementById("btn-close-import").onclick = () => {
+    document.getElementById("import-modal").style.display = "none";
+  };
+  document.getElementById("btn-rescan-platforms").onclick = loadDetectedPlatforms;
+
+  document.getElementById("btn-pick-files").onclick = async () => {
+    const btn = document.getElementById("btn-pick-files");
+    btn.disabled = true;
+    btn.textContent = "正在上传...";
+    const statusBox = document.getElementById("import-status-box");
+    statusBox.textContent = "正在处理选中的本地图片...";
+    try {
+      const res = await invoke("pick_and_import_local_files");
+      statusBox.textContent = res.message;
+      showToast("本地导入完成！");
+      loadTags();
+      loadItems();
+    } catch (err) {
+      if (err !== "未选择任何文件") {
+        statusBox.textContent = "导入失败: " + err;
+        showToast("导入失败: " + err);
+      } else {
+        statusBox.textContent = "";
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "选择并上传本地图片";
+    }
   };
 
   function openSettings() {

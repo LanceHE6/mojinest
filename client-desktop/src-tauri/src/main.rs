@@ -1,7 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod importer;
+
 use arboard::{Clipboard, ImageData};
 use directories::ProjectDirs;
+use importer::{detect_platform_sources, import_directory, DetectedPlatform, ImportSummary};
+use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fs;
@@ -91,6 +95,81 @@ fn hide_window(window: Window) {
 }
 
 #[tauri::command]
+fn get_detected_platforms() -> Vec<DetectedPlatform> {
+    detect_platform_sources()
+}
+
+#[tauri::command]
+async fn pick_and_import_local_files() -> Result<ImportSummary, String> {
+    let cfg = load_config();
+    let files = FileDialog::new()
+        .add_filter("Images", &["png", "jpg", "jpeg", "gif", "webp"])
+        .pick_files();
+
+    let files = match files {
+        Some(f) => f,
+        None => return Err("未选择任何文件".into()),
+    };
+
+    let client = reqwest::Client::new();
+    let mut uploaded_count = 0;
+    let mut skipped_count = 0;
+    let mut failed_count = 0;
+    let total_scanned = files.len();
+
+    for p in files {
+        let bytes = match fs::read(&p) {
+            Ok(b) => b,
+            Err(_) => {
+                failed_count += 1;
+                continue;
+            }
+        };
+        let fname = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let mime = match p.extension().and_then(|e| e.to_str()).unwrap_or("") {
+            "png" => "image/png",
+            "gif" => "image/gif",
+            "jpg" | "jpeg" => "image/jpeg",
+            "webp" => "image/webp",
+            _ => "application/octet-stream",
+        };
+
+        match importer::upload_image(
+            &client,
+            &cfg.server_url,
+            &cfg.token,
+            &fname,
+            bytes,
+            mime,
+            "local",
+        )
+        .await
+        {
+            Ok(true) => uploaded_count += 1,
+            Ok(false) => skipped_count += 1,
+            Err(_) => failed_count += 1,
+        }
+    }
+
+    Ok(ImportSummary {
+        total_scanned,
+        uploaded_count,
+        skipped_count,
+        failed_count,
+        message: format!(
+            "本地导入完成：共选择 {} 个文件，成功 {} 张，跳过 {} 张，失败 {} 个",
+            total_scanned, uploaded_count, skipped_count, failed_count
+        ),
+    })
+}
+
+#[tauri::command]
+async fn run_platform_import(dir_path: String, platform: String) -> Result<ImportSummary, String> {
+    let cfg = load_config();
+    import_directory(cfg.server_url, cfg.token, dir_path, platform).await
+}
+
+#[tauri::command]
 fn start_drag(window: Window) {
     window.start_dragging().ok();
 }
@@ -166,6 +245,9 @@ fn main() {
             get_desktop_config,
             save_desktop_config,
             open_settings_modal,
+            get_detected_platforms,
+            pick_and_import_local_files,
+            run_platform_import,
             hide_window,
             start_drag,
             open_web_browser,
