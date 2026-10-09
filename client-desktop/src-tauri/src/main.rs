@@ -262,8 +262,14 @@ fn main() {
             let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &settings_i, &quit_i])?;
 
+            let icon_bytes = include_bytes!("../icons/32x32.png");
+            let img = image::load_from_memory(icon_bytes).unwrap();
+            let rgba = img.to_rgba8();
+            let (w, h) = rgba.dimensions();
+            let tray_icon = tauri::image::Image::new_owned(rgba.into_raw(), w, h);
+
             let _tray = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(tray_icon)
                 .menu(&menu)
                 .show_menu_on_left_click(false) // 关键：左键点击不要触发右键上下文菜单，右键才弹菜单
                 .tooltip("Mojinest")
