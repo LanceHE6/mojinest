@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"mojinest/internal/config"
+	"mojinest/internal/db"
 	"mojinest/internal/imageutil"
 	"mojinest/internal/repo"
 	"mojinest/internal/store"
@@ -752,6 +753,19 @@ func (s *Server) handleSetStorageConfig(w http.ResponseWriter, r *http.Request) 
 		newStore = s3Store
 	}
 
+	// 方案1：为不同存储空间独立绑定物理隔离的 SQLite 数据库
+	targetCfg := *s.Cfg
+	targetCfg.Storage = in.Backend
+	if in.Backend == "local" && in.DataDir != "" {
+		targetCfg.DataDir = in.DataDir
+	}
+	newDB, err := db.Open(targetCfg.DBPath())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "failed to open isolated database: "+err.Error())
+		return
+	}
+	newRepo := repo.New(newDB)
+
 	s.mu.Lock()
 	s.Cfg.Storage = in.Backend
 	if in.Backend == "local" && in.DataDir != "" {
@@ -761,6 +775,7 @@ func (s *Server) handleSetStorageConfig(w http.ResponseWriter, r *http.Request) 
 		s.Cfg.S3 = in.S3
 	}
 	s.Store = newStore
+	s.Repo = newRepo
 
 	// 持久化保存配置文件
 	cfgPath := os.Getenv("MOJINEST_CONFIG")

@@ -116,7 +116,12 @@ func (c *Config) Save(path string) error {
 
 func (c *Config) FilesDir() string { return filepath.Join(c.DataDir, "files") }
 func (c *Config) ThumbDir() string { return filepath.Join(c.DataDir, "thumbs") }
-func (c *Config) DBPath() string   { return filepath.Join(c.DataDir, "mojinest.db") }
+func (c *Config) DBPath() string {
+	if c.Storage == "s3" {
+		return filepath.Join(c.DataDir, "mojinest_r3.db")
+	}
+	return filepath.Join(c.DataDir, "mojinest_local.db")
+}
 
 func (c *Config) EnsureDirs() error {
 	for _, d := range []string{c.DataDir, c.FilesDir(), c.ThumbDir()} {
