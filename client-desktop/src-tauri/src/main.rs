@@ -63,6 +63,11 @@ fn hide_window(window: Window) {
 }
 
 #[tauri::command]
+fn start_drag(window: Window) {
+    window.start_dragging().ok();
+}
+
+#[tauri::command]
 fn open_web_browser(url: String) {
     open::that(url).ok();
 }
@@ -101,23 +106,12 @@ async fn copy_item_to_clipboard(file_url: String, _mime_type: String) -> Result<
     Ok(())
 }
 
-// 弹出浮窗并将其定位到鼠标旁边
+// 弹出浮窗（用户呼出时保持原位或居中，不再每次篡改位置到屏幕死角）
 fn toggle_picker_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         if window.is_visible().unwrap_or(false) {
             window.hide().ok();
         } else {
-            // 获取光标坐标
-            if let Ok(cursor) = window.cursor_position() {
-                let mut x = cursor.x as i32;
-                let mut y = cursor.y as i32;
-
-                // 偏移避免光标挡住窗口主体，且防止超边界
-                x = (x - 20).max(0);
-                y = (y + 10).max(0);
-
-                window.set_position(PhysicalPosition::new(x, y)).ok();
-            }
             window.show().ok();
             window.unminimize().ok();
             window.set_focus().ok();
@@ -134,6 +128,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_desktop_config,
             hide_window,
+            start_drag,
             open_web_browser,
             copy_item_to_clipboard
         ])
@@ -146,6 +141,7 @@ fn main() {
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
             let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .tooltip("Mojinest 贴图小窝")
                 .on_menu_event(move |app, event| match event.id.as_ref() {

@@ -38,7 +38,7 @@
     padding: 8px 10px;
     background: #181a22;
     border-bottom: 1px solid var(--line);
-    -webkit-app-region: drag; /* 允许按住顶栏拖动窗口 */
+    cursor: move;
   }
   .win-title {
     font-weight: 600;
@@ -423,6 +423,15 @@
     if (e.key === "Escape") {
       invoke("hide_window");
     }
+  });
+
+  const header = document.querySelector("header");
+  header.addEventListener("mousedown", (e) => {
+    // 只有点在 header 顶栏空白处或标题上时才触发拖动，不影响搜索框和按钮点击
+    if (e.target.id === "search" || e.target.closest("button") || e.target.closest(".search-wrap")) {
+      return;
+    }
+    invoke("start_drag");
   });
 
   // 初始化
