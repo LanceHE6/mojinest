@@ -204,7 +204,7 @@
   /* 提示框 / Toast */
   #toast {
     position: fixed;
-    bottom: 16px;
+    bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(20, 22, 30, 0.95);
@@ -213,13 +213,90 @@
     font-size: 12px;
     padding: 6px 14px;
     border-radius: 16px;
-    pointer-events: none;
+    pointer-events: auto;
     opacity: 0;
     transition: opacity 0.2s;
-    z-index: 99;
+    z-index: 150;
     box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   #toast.show { opacity: 1; }
+  .btn-undo {
+    background: #4f80ff;
+    border: none;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .btn-undo:hover {
+    background: #6894ff;
+  }
+
+  /* 自定义右键上下文菜单 */
+  #context-menu {
+    position: fixed;
+    display: none;
+    background: #1d202b;
+    border: 1px solid #333748;
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    z-index: 200;
+    width: 140px;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .menu-item {
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--fg);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s;
+  }
+  .menu-item:hover {
+    background: #2b3042;
+  }
+  .menu-item.danger {
+    color: #f87171;
+  }
+  .menu-item.danger:hover {
+    background: rgba(239, 68, 68, 0.15);
+  }
+
+  /* 大图查看模态窗口 */
+  #preview-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 16, 0.88);
+    backdrop-filter: blur(4px);
+    z-index: 180;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 20px;
+  }
+  #preview-img {
+    max-width: 90%;
+    max-height: 80vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+  }
+  #preview-title {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #cbd5e1;
+  }
 
   /* 底部状态 */
   footer {
@@ -309,6 +386,21 @@
 
 <div id="toast"></div>
 
+<!-- 大图预览模态 -->
+<div id="preview-modal" onclick="closePreview()">
+  <img id="preview-img" src="" alt="大图预览">
+  <div id="preview-title"></div>
+  <div style="font-size:11px; color:#8e94a5; margin-top:4px;">点击任意处关闭</div>
+</div>
+
+<!-- 右键上下文菜单 -->
+<div id="context-menu">
+  <div class="menu-item" id="ctx-preview">🔍 查看大图</div>
+  <div class="menu-item" id="ctx-copy">📋 复制</div>
+  <div class="menu-item" id="ctx-rename">✏️ 重命名</div>
+  <div class="menu-item danger" id="ctx-delete">🗑️ 删除</div>
+</div>
+
 <!-- 设置模态窗口 -->
 <div id="settings-modal" style="display:none; position:fixed; inset:0; background:rgba(10,12,16,0.85); z-index:100; backdrop-filter:blur(3px); align-items:center; justify-content:center;">
   <div style="background:#1c1e27; border:1px solid #323646; border-radius:10px; width:340px; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:14px;">
@@ -345,12 +437,50 @@
   let serverConfig = { server_url: "http://192.168.1.4:18642", token: "" };
   let currentTag = "";
   let searchTimer = null;
+  let activeContextItem = null;
+  let deleteUndoTimer = null;
 
-  function showToast(msg) {
+  function showToast(msg, undoCallback = null, duration = 1500) {
     const t = document.getElementById("toast");
-    t.textContent = msg;
+    t.innerHTML = "";
+    const txt = document.createElement("span");
+    txt.textContent = msg;
+    t.appendChild(txt);
+
+    if (undoCallback) {
+      const undoBtn = document.createElement("button");
+      undoBtn.className = "btn-undo";
+      undoBtn.textContent = "撤回 (5s)";
+      let left = 5;
+      const countInterval = setInterval(() => {
+        left--;
+        if (left > 0) undoBtn.textContent = `撤回 (${left}s)`;
+      }, 1000);
+
+      undoBtn.onclick = () => {
+        clearInterval(countInterval);
+        t.classList.remove("show");
+        undoCallback();
+      };
+      t.appendChild(undoBtn);
+      duration = 5000;
+    }
+
     t.classList.add("show");
-    setTimeout(() => t.classList.remove("show"), 1400);
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => {
+      t.classList.remove("show");
+    }, duration);
+  }
+
+  function closeContextMenu() {
+    const m = document.getElementById("context-menu");
+    m.style.display = "none";
+    activeContextItem = null;
+  }
+
+  function closePreview() {
+    document.getElementById("preview-modal").style.display = "none";
   }
 
   async function loadConfig() {
@@ -456,9 +586,135 @@
         }
       };
 
+      // 右键上下文菜单事件
+      card.oncontextmenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        activeContextItem = { ...it, fileUrl, thumbUrl, element: card };
+
+        const menu = document.getElementById("context-menu");
+        menu.style.display = "flex";
+
+        let x = e.clientX;
+        let y = e.clientY;
+        const menuWidth = 140;
+        const menuHeight = 150;
+        if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8;
+        if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8;
+
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+      };
+
       grid.appendChild(card);
     });
   }
+
+  // 全局点击自动关闭右键菜单
+  window.addEventListener("click", () => {
+    closeContextMenu();
+  });
+
+  // 1. 显示大图
+  document.getElementById("ctx-preview").onclick = () => {
+    if (!activeContextItem) return;
+    const it = activeContextItem;
+    closeContextMenu();
+    const modal = document.getElementById("preview-modal");
+    const img = document.getElementById("preview-img");
+    const title = document.getElementById("preview-title");
+    img.src = it.fileUrl;
+    title.textContent = it.name || it.ai_description || "表情大图";
+    modal.style.display = "flex";
+  };
+
+  // 2. 复制到剪贴板
+  document.getElementById("ctx-copy").onclick = async () => {
+    if (!activeContextItem) return;
+    const it = activeContextItem;
+    closeContextMenu();
+    try {
+      showToast("正在写入剪贴板...");
+      await invoke("copy_item_to_clipboard", {
+        fileUrl: it.fileUrl,
+        mimeType: it.mime || "image/png"
+      });
+      apiFetch(`/api/items/${it.id}/use`, { method: "POST" }).catch(() => {});
+      await invoke("hide_window");
+    } catch (err) {
+      showToast("复制失败: " + err);
+    }
+  };
+
+  // 3. 重命名表情包
+  document.getElementById("ctx-rename").onclick = async () => {
+    if (!activeContextItem) return;
+    const it = activeContextItem;
+    closeContextMenu();
+    const oldName = it.name || "";
+    const newName = window.prompt("请输入新的表情包名称：", oldName);
+    if (newName === null || newName.trim() === "" || newName.trim() === oldName) {
+      return;
+    }
+    try {
+      const base = serverConfig.server_url.replace(/\/+$/, "");
+      const res = await fetch(`${base}/api/items/${it.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+        },
+        body: JSON.stringify({ name: newName.trim() })
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      showToast("重命名成功！");
+      loadItems();
+    } catch (err) {
+      showToast("重命名失败: " + err);
+    }
+  };
+
+  // 4. 删除表情包（5秒内可撤回）
+  document.getElementById("ctx-delete").onclick = () => {
+    if (!activeContextItem) return;
+    const it = activeContextItem;
+    closeContextMenu();
+
+    // 乐观 UI 隐藏该卡片
+    if (it.element) {
+      it.element.style.display = "none";
+    }
+
+    let isUndone = false;
+    const executeDelete = async () => {
+      if (isUndone) return;
+      try {
+        const base = serverConfig.server_url.replace(/\/+$/, "");
+        const res = await fetch(`${base}/api/items/${it.id}`, {
+          method: "DELETE",
+          headers: {
+            "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+          }
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+      } catch (err) {
+        showToast("彻底删除失败: " + err);
+        if (it.element) it.element.style.display = "flex";
+      }
+    };
+
+    deleteUndoTimer = setTimeout(executeDelete, 5000);
+
+    showToast("表情已删除", () => {
+      // 撤回逻辑
+      isUndone = true;
+      clearTimeout(deleteUndoTimer);
+      if (it.element) {
+        it.element.style.display = "flex";
+      }
+      showToast("已撤回删除！");
+    });
+  };
 
   // 事件监听
   document.getElementById("search").addEventListener("input", () => {

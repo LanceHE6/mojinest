@@ -107,6 +107,15 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) withMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 允许 Tauri 客户端及局域网前端跨域请求
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		if strings.HasPrefix(r.URL.Path, "/api/") {
@@ -118,8 +127,8 @@ func (s *Server) withMiddleware(next http.Handler) http.Handler {
 		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead &&
 			strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/auth/login" {
-			// Block cross-site writes (CSRF): only same-origin or no Origin.
-			if o := r.Header.Get("Origin"); o != "" && !sameOrigin(o, r.Host) {
+			// Block cross-site writes (CSRF): only same-origin or no Origin or localhost/tauri.
+			if o := r.Header.Get("Origin"); o != "" && !sameOrigin(o, r.Host) && !strings.Contains(o, "tauri://") && !strings.Contains(o, "localhost") {
 				writeErr(w, http.StatusForbidden, "cross-origin request denied")
 				return
 			}
