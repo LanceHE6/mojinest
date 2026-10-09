@@ -187,6 +187,11 @@
     border-color: var(--acc);
     background: var(--card-hover);
   }
+  .item-card.selected {
+    border-color: #4f80ff !important;
+    background: #1e263d !important;
+    box-shadow: 0 0 0 2px #4f80ff;
+  }
   .item-card img {
     max-width: 84%;
     max-height: 84%;
@@ -218,6 +223,33 @@
     overflow: hidden;
     text-overflow: ellipsis;
     pointer-events: none;
+    transition: opacity 0.15s;
+  }
+  /* 下 1/3 悬浮复制触发按钮 */
+  .copy-hover-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 33.33%;
+    background: rgba(79, 128, 255, 0.92);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    opacity: 0;
+    pointer-events: auto;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+  }
+  .item-card:hover .copy-hover-bar {
+    opacity: 1;
+  }
+  .item-card:hover .card-label {
+    opacity: 0;
   }
 
   /* 提示框 / Toast */
@@ -665,8 +697,30 @@
   let serverConfig = { server_url: "http://192.168.1.4:18642", token: "" };
   let currentTag = "";
   let searchTimer = null;
-  let activeContextItem = null;
-  let deleteUndoTimer = null;
+  let selectedItemIds = new Set();
+  let selectedItemsMap = new Map();
+
+  function toggleSelection(it, card) {
+    if (selectedItemIds.has(it.id)) {
+      selectedItemIds.delete(it.id);
+      selectedItemsMap.delete(it.id);
+      card.classList.remove("selected");
+    } else {
+      selectedItemIds.add(it.id);
+      selectedItemsMap.set(it.id, { ...it, element: card });
+      card.classList.add("selected");
+    }
+    const count = selectedItemIds.size;
+    if (count > 0) {
+      showToast(`已多选 ${count} 个表情 (右键可批量删除)`);
+    }
+  }
+
+  function clearSelection() {
+    selectedItemIds.clear();
+    selectedItemsMap.clear();
+    document.querySelectorAll(".item-card.selected").forEach(c => c.classList.remove("selected"));
+  }
 
   function showToast(msg, undoCallback = null, duration = 1500) {
     const t = document.getElementById("toast");
@@ -795,7 +849,30 @@
         <img src="${thumbUrl}" data-thumb="${thumbUrl}" data-full="${fileUrl}" loading="lazy" alt="${it.name}">
         ${it.animated ? '<span class="anim-badge">GIF</span>' : ''}
         <span class="card-label">${it.name || it.ai_description || '表情'}</span>
+        <div class="copy-hover-bar" title="单击复制到聊天框">
+          <svg style="width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:36px;" viewBox="0 0 512 512"><rect x="128" y="128" width="336" height="336" rx="57" ry="57"/><path d="M383.5,128l.5-24a56.16,56.16,0,0,0-56-56H112a64.19,64.19,0,0,0-64,64V328a56.16,56.16,0,0,0,56,56h24"/></svg>
+          <span>复制</span>
+        </div>
       `;
+
+      // 绑定下 1/3 部分专属复制按钮
+      const copyBtn = card.querySelector(".copy-hover-bar");
+      copyBtn.onclick = async (e) => {
+        e.stopPropagation(); // 阻止触发卡片主体的选中事件
+        try {
+          showToast("已选择，正在写入剪贴板...");
+          await invoke("copy_item_to_clipboard", {
+            fileUrl: fileUrl,
+            ext: it.ext || "gif",
+            mimeType: it.mime || "image/gif",
+            scaleForChat: true
+          });
+          apiFetch(`/api/items/${it.id}/use`, { method: "POST" }).catch(() => {});
+          await invoke("hide_window");
+        } catch (err) {
+          showToast("复制失败: " + err);
+        }
+      };
 
       // GIF 图光标悬停时播放动图，移出时恢复首帧缩略图
       if (it.animated) {
@@ -813,33 +890,33 @@
         };
       }
 
-      card.onclick = async () => {
-        try {
-          showToast("已选择，正在写入剪贴板...");
-          // 左键单击：启用 scale_for_chat: true，按聊天标准表情尺寸缩放
-          await invoke("copy_item_to_clipboard", {
-            fileUrl: fileUrl,
-            ext: it.ext || "gif",
-            mimeType: it.mime || "image/gif",
-            scaleForChat: true
-          });
-          // 记录使用频次
-          apiFetch(`/api/items/${it.id}/use`, { method: "POST" }).catch(() => {});
-          // 复制成功后直接隐藏浮窗
-          await invoke("hide_window");
-        } catch (err) {
-          showToast("复制失败: " + err);
-        }
+      // 点击其余主体部分：切换选中/多选状态
+      card.onclick = (e) => {
+        toggleSelection(it, card);
       };
 
       // 右键上下文菜单事件
       card.oncontextmenu = (e) => {
         e.preventDefault();
         e.stopPropagation();
+        // 如果当前右键的卡片未被多选，且没有多选其他项，则将当前项设为主选中
+        if (!selectedItemIds.has(it.id)) {
+          clearSelection();
+          toggleSelection(it, card);
+        }
         activeContextItem = { ...it, fileUrl, thumbUrl, element: card };
 
         const menu = document.getElementById("context-menu");
         menu.style.display = "flex";
+
+        // 更新删除菜单文案：单选删除还是批量删除
+        const delBtn = document.getElementById("ctx-delete");
+        const count = selectedItemIds.size;
+        if (count > 1) {
+          delBtn.querySelector("span").textContent = `批量删除 (${count} 个)`;
+        } else {
+          delBtn.querySelector("span").textContent = "删除";
+        }
 
         let x = e.clientX;
         let y = e.clientY;
@@ -947,44 +1024,54 @@
     document.getElementById("rename-modal").style.display = "none";
   };
 
-  // 4. 删除表情包（5秒内可撤回）
+  // 4. 删除表情包（支持单选或多选批量删除，5秒内可撤回）
   document.getElementById("ctx-delete").onclick = () => {
-    if (!activeContextItem) return;
-    const it = activeContextItem;
     closeContextMenu();
 
-    // 乐观 UI 隐藏该卡片
-    if (it.element) {
-      it.element.style.display = "none";
+    // 收集所有待删除的项目
+    const itemsToDelete = [];
+    if (selectedItemIds.size > 0) {
+      selectedItemsMap.forEach(v => itemsToDelete.push(v));
+    } else if (activeContextItem) {
+      itemsToDelete.push(activeContextItem);
     }
+    if (!itemsToDelete.length) return;
+
+    // 乐观 UI 隐藏被删的所有卡片
+    itemsToDelete.forEach(it => {
+      if (it.element) it.element.style.display = "none";
+    });
 
     let isUndone = false;
     const executeDelete = async () => {
       if (isUndone) return;
-      try {
-        const base = serverConfig.server_url.replace(/\/+$/, "");
-        const res = await fetch(`${base}/api/items/${it.id}`, {
-          method: "DELETE",
-          headers: {
-            "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
-          }
-        });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-      } catch (err) {
-        showToast("彻底删除失败: " + err);
-        if (it.element) it.element.style.display = "flex";
+      const base = serverConfig.server_url.replace(/\/+$/, "");
+      for (const it of itemsToDelete) {
+        try {
+          await fetch(`${base}/api/items/${it.id}`, {
+            method: "DELETE",
+            headers: {
+              "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+            }
+          });
+        } catch (err) {
+          console.error("删除失败", err);
+        }
       }
+      clearSelection();
+      loadItems();
     };
 
     deleteUndoTimer = setTimeout(executeDelete, 5000);
 
-    showToast("表情已删除", () => {
+    const msg = itemsToDelete.length > 1 ? `已删除 ${itemsToDelete.length} 个表情` : "表情已删除";
+    showToast(msg, () => {
       // 撤回逻辑
       isUndone = true;
       clearTimeout(deleteUndoTimer);
-      if (it.element) {
-        it.element.style.display = "flex";
-      }
+      itemsToDelete.forEach(it => {
+        if (it.element) it.element.style.display = "flex";
+      });
       showToast("已撤回删除！");
     });
   };
@@ -1037,31 +1124,61 @@
       }
     });
 
-    // 监听拖拽进窗口的原生事件
-    window.__TAURI__.event.listen("tauri://drag-enter", () => {
-      document.getElementById("drop-overlay").classList.add("active");
-    });
-    window.__TAURI__.event.listen("tauri://drag-leave", () => {
+  // 拖拽 HTML5 原生事件监听（支持系统任意图片拖入）
+  window.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    document.getElementById("drop-overlay").classList.add("active");
+  });
+  window.addEventListener("dragover", (e) => {
+    e.preventDefault();
+  });
+  window.addEventListener("dragleave", (e) => {
+    if (e.relatedTarget === null || e.clientX <= 0 || e.clientY <= 0) {
       document.getElementById("drop-overlay").classList.remove("active");
-    });
-    window.__TAURI__.event.listen("tauri://drag-drop", async (ev) => {
-      document.getElementById("drop-overlay").classList.remove("active");
-      const paths = ev.payload.paths;
-      if (paths && paths.length) {
-        showToast(`已拖入 ${paths.length} 个文件，正在后台导入...`);
-        const statusBox = document.getElementById("import-status-box");
-        try {
-          const res = await invoke("import_files_from_paths", { paths });
-          showToast(res.message, null, 3000);
-          loadTags();
-          loadItems();
-        } catch (err) {
-          showToast("拖拽导入失败: " + err);
-        } finally {
-          hideProgressBar();
-        }
+    }
+  });
+  window.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    document.getElementById("drop-overlay").classList.remove("active");
+    const dt = e.dataTransfer;
+    if (!dt || !dt.files || !dt.files.length) return;
+
+    const files = Array.from(dt.files);
+    showToast(`收到 ${files.length} 个拖入文件，正在上传...`);
+    updateProgressBar(0, files.length, "开始上传...");
+
+    const base = serverConfig.server_url.replace(/\/+$/, "");
+    let okCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      updateProgressBar(i + 1, files.length, f.name);
+      const fd = new FormData();
+      fd.append("file", f);
+      fd.append("source_platform", "drag-drop");
+      fd.append("tags", "拖拽,导入");
+
+      try {
+        const res = await fetch(`${base}/api/items`, {
+          method: "POST",
+          headers: {
+            "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+          },
+          body: fd
+        });
+        if (res.ok || res.status === 409) okCount++;
+        else failCount++;
+      } catch (err) {
+        failCount++;
       }
-    });
+    }
+
+    hideProgressBar();
+    showToast(`拖拽导入完成：成功/已存在 ${okCount} 张，失败 ${failCount} 个`, null, 3000);
+    loadTags();
+    loadItems();
+  });
   }
 
   // --- 导入逻辑 ---
