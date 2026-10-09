@@ -14,9 +14,11 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"os"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"mojinest/internal/config"
@@ -35,6 +37,7 @@ type Server struct {
 	Cfg   *config.Config
 	Log   *slog.Logger
 
+	mu      sync.RWMutex
 	limiter *limiter
 	cookie  string
 	web     fs.FS
@@ -92,6 +95,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/jobs", s.authed(s.handleJobs))
 	mux.HandleFunc("POST /api/jobs/retry", s.authed(s.handleRetryJobs))
 	mux.HandleFunc("POST /api/trash/empty", s.authed(s.handleEmptyTrash))
+
+	mux.HandleFunc("GET /api/config/storage", s.authed(s.handleGetStorageConfig))
+	mux.HandleFunc("POST /api/config/storage", s.authed(s.handleSetStorageConfig))
 
 	mux.HandleFunc("GET /api/files/{sha}", s.authed(s.handleFile))
 	mux.HandleFunc("GET /api/thumbs/{sha}", s.authed(s.handleThumb))
@@ -672,6 +678,103 @@ func (s *Server) handleEmptyTrash(w http.ResponseWriter, r *http.Request) {
 		s.removeBlobs(r.Context(), sha)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"removed": len(blobs)})
+}
+
+// --- storage config ---
+
+type StorageConfigResponse struct {
+	Backend string          `json:"backend"`
+	DataDir string          `json:"data_dir"`
+	S3      config.S3Config `json:"s3"`
+}
+
+type UpdateStorageConfigRequest struct {
+	Backend string          `json:"backend"` // local | s3
+	DataDir string          `json:"data_dir"`
+	S3      config.S3Config `json:"s3"`
+}
+
+func (s *Server) handleGetStorageConfig(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	resp := StorageConfigResponse{
+		Backend: s.Cfg.Storage,
+		DataDir: s.Cfg.DataDir,
+		S3:      s.Cfg.S3,
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleSetStorageConfig(w http.ResponseWriter, r *http.Request) {
+	var in UpdateStorageConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+
+	if in.Backend != "local" && in.Backend != "s3" {
+		writeErr(w, http.StatusBadRequest, "backend must be 'local' or 's3'")
+		return
+	}
+
+	// 动态创建并测试新的 Store
+	var newStore store.Store
+	if in.Backend == "local" {
+		dir := in.DataDir
+		if dir == "" {
+			dir = "data"
+		}
+		ls, err := store.NewLocal(dir)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "failed to initialize local store: "+err.Error())
+			return
+		}
+		newStore = ls
+	} else {
+		if in.S3.Bucket == "" {
+			writeErr(w, http.StatusBadRequest, "s3: bucket is required")
+			return
+		}
+		opts := store.S3Options{
+			Endpoint:   in.S3.Endpoint,
+			Region:     in.S3.Region,
+			Bucket:     in.S3.Bucket,
+			AccessKey:  in.S3.AccessKey,
+			SecretKey:  in.S3.SecretKey,
+			PathStyle:  in.S3.PathStyle,
+			PublicBase: in.S3.PublicBase,
+		}
+		s3Store, err := store.NewS3(r.Context(), opts)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "failed to initialize s3 store: "+err.Error())
+			return
+		}
+		newStore = s3Store
+	}
+
+	s.mu.Lock()
+	s.Cfg.Storage = in.Backend
+	if in.Backend == "local" && in.DataDir != "" {
+		s.Cfg.DataDir = in.DataDir
+	}
+	if in.Backend == "s3" {
+		s.Cfg.S3 = in.S3
+	}
+	s.Store = newStore
+
+	// 持久化保存配置文件
+	cfgPath := os.Getenv("MOJINEST_CONFIG")
+	if cfgPath == "" {
+		cfgPath = config.DefaultPath()
+	}
+	_ = s.Cfg.Save(cfgPath)
+	s.mu.Unlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": "服务端存储引擎配置成功并已实时生效！",
+		"backend": in.Backend,
+	})
 }
 
 // --- blobs ---

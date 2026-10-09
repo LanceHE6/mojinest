@@ -493,36 +493,90 @@
 
 <!-- 设置模态窗口 -->
 <div id="settings-modal" style="display:none; position:fixed; inset:0; background:rgba(10,12,16,0.85); z-index:100; backdrop-filter:blur(3px); align-items:center; justify-content:center;">
-  <div style="background:#1c1e27; border:1px solid #323646; border-radius:10px; width:340px; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:14px;">
+  <div style="background:#1c1e27; border:1px solid #323646; border-radius:10px; width:360px; max-height:88vh; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:14px; overflow-y:auto;">
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2b2f3d; padding-bottom:8px;">
       <div style="display:flex; align-items:center; gap:6px;">
         <svg style="width:16px; height:16px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><path d="M262.29,192.31a64,64,0,1,0,57.4,57.4A64.13,64.13,0,0,0,262.29,192.31ZM256,288a32,32,0,1,1,32-32A32,32,0,0,1,256,288Z"/><path d="M416.39,222.75l-42.67-6.93a144.38,144.38,0,0,0-12-28.82l23.51-36.21a16,16,0,0,0-2.31-20.73L354.34,101.5a16,16,0,0,0-20.73-2.31l-36.21,23.51a144.38,144.38,0,0,0-28.82-12L261.65,68a16,16,0,0,0-15.82-13.43H210.17A16,16,0,0,0,194.35,68l-6.93,42.67a144.38,144.38,0,0,0-28.82,12L122.39,99.19a16,16,0,0,0-20.73,2.31L73.1,130.06a16,16,0,0,0-2.31,20.73l23.51,36.21a144.38,144.38,0,0,0-12,28.82l-42.67,6.93A16,16,0,0,0,26.2,238.57v34.86a16,16,0,0,0,13.43,15.82l42.67,6.93a144.38,144.38,0,0,0,12,28.82L70.79,361.21a16,16,0,0,0,2.31,20.73l28.56,28.56a16,16,0,0,0,20.73,2.31l36.21-23.51a144.38,144.38,0,0,0,28.82,12l6.93,42.67a16,16,0,0,0,15.82,13.43h35.66a16,16,0,0,0,15.82-13.43l6.93-42.67a144.38,144.38,0,0,0,28.82-12l36.21,23.51a16,16,0,0,0,20.73-2.31l28.56-28.56a16,16,0,0,0,2.31-20.73l-23.51-36.21a144.38,144.38,0,0,0,12-28.82l42.67-6.93a16,16,0,0,0,13.43-15.82V238.57A16,16,0,0,0,416.39,222.75Z"/></svg>
-        <span style="font-weight:600; font-size:14px; color:#fff;">客户端偏好设置</span>
+        <span style="font-weight:600; font-size:14px; color:#fff;">系统偏好设置</span>
       </div>
       <button id="btn-close-settings" class="btn-icon" title="关闭">
         <svg viewBox="0 0 512 512"><line x1="368" y1="368" x2="144" y2="144"/><line x1="368" y1="144" x2="144" y2="368"/></svg>
       </button>
     </div>
 
-    <div style="display:flex; flex-direction:column; gap:6px;">
-      <label style="font-size:11px; color:#8e94a5;">服务端地址 (Server URL)</label>
-      <input id="cfg-server-url" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
+    <!-- 客户端基础配置 -->
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="font-size:12px; font-weight:600; color:#cbd5e1;">💻 客户端设置</div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; color:#8e94a5;">服务端地址 (Server URL)</label>
+        <input id="cfg-server-url" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; color:#8e94a5;">访问令牌 (Auth Token)</label>
+        <input id="cfg-token" type="password" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; color:#8e94a5;">全局呼出快捷键 (Hotkey)</label>
+        <input id="cfg-hotkey" placeholder="例如 Ctrl+Alt+E" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
+      </div>
     </div>
 
-    <div style="display:flex; flex-direction:column; gap:6px;">
-      <label style="font-size:11px; color:#8e94a5;">访问令牌 (Auth Token)</label>
-      <input id="cfg-token" type="password" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
-    </div>
+    <!-- 服务端存储方式设置 -->
+    <div style="border-top:1px solid #2b2f3d; padding-top:10px; display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; font-weight:600; color:#cbd5e1;">☁️ 服务端存储方式</span>
+        <span id="storage-status-tag" style="font-size:10px; padding:2px 6px; border-radius:10px; background:#21242e; color:#4f80ff;">加载中...</span>
+      </div>
 
-    <div style="display:flex; flex-direction:column; gap:6px;">
-      <label style="font-size:11px; color:#8e94a5;">全局呼出快捷键 (Hotkey)</label>
-      <input id="cfg-hotkey" placeholder="例如 Ctrl+Alt+E" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
-      <span style="font-size:10px; color:#6b7280;">修改后立即生效</span>
+      <div style="display:flex; gap:10px;">
+        <label style="font-size:12px; color:#e2e8f0; display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="radio" name="storage-mode" value="local" checked id="radio-storage-local"> 本地存储 (Local)
+        </label>
+        <label style="font-size:12px; color:#e2e8f0; display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="radio" name="storage-mode" value="s3" id="radio-storage-s3"> S3 / Cloudflare R2
+        </label>
+      </div>
+
+      <!-- 选项1: 本地存储路径 -->
+      <div id="storage-local-pane" style="display:flex; flex-direction:column; gap:4px; background:#232734; border:1px solid #323646; border-radius:6px; padding:8px;">
+        <label style="font-size:11px; color:#8e94a5;">服务端存储根目录 (Data Dir)</label>
+        <input id="storage-local-dir" placeholder="例如 data" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+      </div>
+
+      <!-- 选项2: S3 / Cloudflare R2 配置项 -->
+      <div id="storage-s3-pane" style="display:none; flex-direction:column; gap:6px; background:#232734; border:1px solid #323646; border-radius:6px; padding:8px;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">Endpoint (服务端接入地址)</label>
+          <input id="s3-endpoint" placeholder="例如 https://<id>.r2.cloudflarestorage.com" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+        <div style="display:flex; gap:6px;">
+          <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:#8e94a5;">Bucket (存储桶名)</label>
+            <input id="s3-bucket" placeholder="例如 mojinest-stickers" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+          </div>
+          <div style="width:70px; display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:#8e94a5;">Region</label>
+            <input id="s3-region" value="auto" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">Access Key ID</label>
+          <input id="s3-access-key" type="password" placeholder="R2 Access Key" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">Secret Access Key</label>
+          <input id="s3-secret-key" type="password" placeholder="R2 Secret Key" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">Public Base URL (可选公共CDN域名)</label>
+          <input id="s3-public-base" placeholder="例如 https://pub-xxx.r2.dev" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+      </div>
     </div>
 
     <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
       <button id="btn-cancel-settings" style="background:#2b2f3d; border:none; color:#cbd5e1; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px;">取消</button>
-      <button id="btn-save-settings" style="background:#4f80ff; border:none; color:#fff; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">保存并生效</button>
+      <button id="btn-save-settings" style="background:#4f80ff; border:none; color:#fff; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">保存所有配置</button>
     </div>
   </div>
 </div>
@@ -958,13 +1012,51 @@
     }
   };
 
-  function openSettings() {
+  async function openSettings() {
     document.getElementById("cfg-server-url").value = serverConfig.server_url || "";
     document.getElementById("cfg-token").value = serverConfig.token || "";
     document.getElementById("cfg-hotkey").value = serverConfig.hotkey || "Ctrl+Alt+E";
     const modal = document.getElementById("settings-modal");
     modal.style.display = "flex";
+
+    // 尝试拉取服务端当前存储配置
+    const tag = document.getElementById("storage-status-tag");
+    tag.textContent = "查询中...";
+    try {
+      const st = await apiFetch("/api/config/storage");
+      tag.textContent = st.backend === "s3" ? "S3 / R2 模式" : "本地文件模式";
+      if (st.backend === "s3") {
+        document.getElementById("radio-storage-s3").checked = true;
+        document.getElementById("storage-local-pane").style.display = "none";
+        document.getElementById("storage-s3-pane").style.display = "flex";
+      } else {
+        document.getElementById("radio-storage-local").checked = true;
+        document.getElementById("storage-local-pane").style.display = "flex";
+        document.getElementById("storage-s3-pane").style.display = "none";
+      }
+      document.getElementById("storage-local-dir").value = st.data_dir || "data";
+      if (st.s3) {
+        document.getElementById("s3-endpoint").value = st.s3.endpoint || "";
+        document.getElementById("s3-bucket").value = st.s3.bucket || "";
+        document.getElementById("s3-region").value = st.s3.region || "auto";
+        document.getElementById("s3-access-key").value = st.s3.access_key || "";
+        document.getElementById("s3-secret-key").value = st.s3.secret_key || "";
+        document.getElementById("s3-public-base").value = st.s3.public_base || "";
+      }
+    } catch (e) {
+      tag.textContent = "服务端不可达";
+    }
   }
+
+  // 存储模式切换事件
+  document.getElementById("radio-storage-local").onchange = () => {
+    document.getElementById("storage-local-pane").style.display = "flex";
+    document.getElementById("storage-s3-pane").style.display = "none";
+  };
+  document.getElementById("radio-storage-s3").onchange = () => {
+    document.getElementById("storage-local-pane").style.display = "none";
+    document.getElementById("storage-s3-pane").style.display = "flex";
+  };
 
   // 挂载到全局方便 Rust 原生直接可靠调用
   window.__openSettingsModal = openSettings;
@@ -983,15 +1075,52 @@
       token: document.getElementById("cfg-token").value.trim(),
       hotkey: document.getElementById("cfg-hotkey").value.trim() || "Ctrl+Alt+E"
     };
+
+    // 1. 保存客户端本地配置 (URL, Token, 热键)
     try {
       await invoke("save_desktop_config", { cfg: newCfg });
       serverConfig = newCfg;
+    } catch (err) {
+      showToast("保存客户端配置失败: " + err);
+      return;
+    }
+
+    // 2. 将服务端存储方式同步提交给服务端生效
+    const isS3 = document.getElementById("radio-storage-s3").checked;
+    const storagePayload = {
+      backend: isS3 ? "s3" : "local",
+      data_dir: document.getElementById("storage-local-dir").value.trim() || "data",
+      s3: {
+        endpoint: document.getElementById("s3-endpoint").value.trim(),
+        bucket: document.getElementById("s3-bucket").value.trim(),
+        region: document.getElementById("s3-region").value.trim() || "auto",
+        access_key: document.getElementById("s3-access-key").value.trim(),
+        secret_key: document.getElementById("s3-secret-key").value.trim(),
+        public_base: document.getElementById("s3-public-base").value.trim(),
+        path_style: false
+      }
+    };
+
+    try {
+      const base = serverConfig.server_url.replace(/\/+$/, "");
+      const res = await fetch(`${base}/api/config/storage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+        },
+        body: JSON.stringify(storagePayload)
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || "HTTP " + res.status);
+      }
       closeSettings();
-      showToast("设置已保存并生效！");
+      showToast("客户端与服务端配置已全部生效！");
       loadTags();
       loadItems();
     } catch (err) {
-      showToast("保存失败: " + err);
+      showToast("存储模式应用失败: " + err);
     }
   };
 
