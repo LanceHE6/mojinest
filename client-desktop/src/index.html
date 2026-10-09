@@ -252,6 +252,42 @@
     opacity: 0;
   }
 
+  /* 多选常驻状态栏 */
+  #selection-bar {
+    display: none;
+    position: fixed;
+    bottom: 34px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1c202c;
+    border: 1px solid #4f80ff;
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    z-index: 140;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+    align-items: center;
+    gap: 12px;
+  }
+  #selection-bar.active {
+    display: flex;
+  }
+  .btn-clear-selection {
+    background: #2b3042;
+    border: 1px solid #3d435a;
+    color: #cbd5e1;
+    padding: 2px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  .btn-clear-selection:hover {
+    background: #3b425b;
+    color: #fff;
+  }
+
   /* 提示框 / Toast */
   #toast {
     position: fixed;
@@ -542,6 +578,12 @@
   <div style="font-size:11px; color:#8e94a5;">支持多选 PNG, GIF, JPG, WEBP</div>
 </div>
 
+<!-- 多选常驻状态栏 -->
+<div id="selection-bar">
+  <span id="selection-count-text">已多选 0 个表情包</span>
+  <button class="btn-clear-selection" id="btn-cancel-selection">取消多选</button>
+</div>
+
 <div id="toast"></div>
 
 <!-- 大图预览模态 -->
@@ -700,6 +742,17 @@
   let selectedItemIds = new Set();
   let selectedItemsMap = new Map();
 
+  function updateSelectionBar() {
+    const bar = document.getElementById("selection-bar");
+    const count = selectedItemIds.size;
+    if (count > 0) {
+      document.getElementById("selection-count-text").textContent = `已多选 ${count} 个表情包`;
+      bar.classList.add("active");
+    } else {
+      bar.classList.remove("active");
+    }
+  }
+
   function toggleSelection(it, card) {
     if (selectedItemIds.has(it.id)) {
       selectedItemIds.delete(it.id);
@@ -710,17 +763,20 @@
       selectedItemsMap.set(it.id, { ...it, element: card });
       card.classList.add("selected");
     }
-    const count = selectedItemIds.size;
-    if (count > 0) {
-      showToast(`已多选 ${count} 个表情 (右键可批量删除)`);
-    }
+    updateSelectionBar();
   }
 
   function clearSelection() {
     selectedItemIds.clear();
     selectedItemsMap.clear();
     document.querySelectorAll(".item-card.selected").forEach(c => c.classList.remove("selected"));
+    updateSelectionBar();
   }
+
+  document.getElementById("btn-cancel-selection").onclick = (e) => {
+    e.stopPropagation();
+    clearSelection();
+  };
 
   function showToast(msg, undoCallback = null, duration = 1500) {
     const t = document.getElementById("toast");
@@ -909,12 +965,22 @@
         const menu = document.getElementById("context-menu");
         menu.style.display = "flex";
 
-        // 更新删除菜单文案：单选删除还是批量删除
-        const delBtn = document.getElementById("ctx-delete");
+        // 更新菜单项：多选模式下只保留删除，隐藏大图/复制/重命名
         const count = selectedItemIds.size;
+        const previewItem = document.getElementById("ctx-preview");
+        const copyItem = document.getElementById("ctx-copy");
+        const renameItem = document.getElementById("ctx-rename");
+        const delBtn = document.getElementById("ctx-delete");
+
         if (count > 1) {
-          delBtn.querySelector("span").textContent = `批量删除 (${count} 个)`;
+          previewItem.style.display = "none";
+          copyItem.style.display = "none";
+          renameItem.style.display = "none";
+          delBtn.querySelector("span").textContent = `删除 (${count} 个)`;
         } else {
+          previewItem.style.display = "flex";
+          copyItem.style.display = "flex";
+          renameItem.style.display = "flex";
           delBtn.querySelector("span").textContent = "删除";
         }
 
