@@ -8,3 +8,6 @@
 *.db-wal
 .DS_Store
 /client-desktop/src-tauri/target/
+.idea/
+config.json
+client-desktop/src-tauri/gen/
