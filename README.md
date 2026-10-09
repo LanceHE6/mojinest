@@ -108,7 +108,21 @@ docker compose up -d --build
 
 ## 桌面客户端（v0.2 & v0.3）
 
-单文件、无运行时依赖（Windows 是 exe，Linux/macOS 直接是二进制）。
+- **Tauri 原生桌面悬浮窗 (v0.3)**：
+  - 源码位于 `client-desktop/`，采用 Tauri v2 + Rust 构建。
+  - **特性**：
+    - 原生系统托盘常驻与右键菜单（支持退出与呼出）；
+    - 全局热键 `Ctrl+Alt+M` 瞬间在**当前光标位置原地悬浮弹出**；
+    - 窗口无系统边框、阴影悬浮、不在任务栏占位；
+    - 点击任意表情包直接调用 Rust 原生剪贴板 API 写入图片，并**自动收起浮窗**；
+    - 点击浮窗外部任何区域**失焦自动隐藏 (blur)**。
+  - **交叉编译构建**：
+    ```bash
+    cd client-desktop/src-tauri
+    cargo xwin build --target x86_64-pc-windows-msvc --release
+    ```
+
+- **单文件命令行版 (v0.2)**：
 
 ```bash
 make desktop                 # 产出 ./mojinest-desktop

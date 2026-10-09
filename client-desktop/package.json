@@ -1,0 +1,9 @@
+{
+  "name": "mojinest-desktop",
+  "version": "0.3.0",
+  "description": "Mojinest Desktop Client with Tauri",
+  "private": true,
+  "scripts": {
+    "tauri": "tauri"
+  }
+}

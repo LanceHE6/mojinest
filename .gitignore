@@ -7,3 +7,4 @@
 *.db-shm
 *.db-wal
 .DS_Store
+/client-desktop/src-tauri/target/
