@@ -44,7 +44,17 @@ pub fn is_valid_decrypted_header(data: &[u8]) -> Option<(&'static str, &'static 
         return Some(("jpg", "image/jpeg"));
     }
     if data.starts_with(b"wxgf") {
-        // 微信专用动图格式，首帧或原生封装
+        // 如果包含 wxgf (WXAM HEVC封装)，搜索是否内嵌了完整的 PNG 或 GIF 图像
+        if let Some(pos) = data.windows(4).position(|w| w == b"\x89PNG") {
+            return Some(("png", "image/png"));
+        }
+        if let Some(pos) = data.windows(4).position(|w| w == b"GIF8") {
+            return Some(("gif", "image/gif"));
+        }
+        if let Some(pos) = data.windows(3).position(|w| w == b"\xFF\xD8\xFF") {
+            return Some(("jpg", "image/jpeg"));
+        }
+        // 兜底返回 gif
         return Some(("gif", "image/gif"));
     }
     None

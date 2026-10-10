@@ -304,28 +304,39 @@ async fn run_wechat_decrypt_export(app: AppHandle) -> Result<wx_decrypt::WeChatE
         None => return Err("未找到本地微信 4.x 数据目录".into()),
     };
 
+    let mut candidate_dirs = Vec::new();
     let persist_dir = account_dir.join("business\\emoticon\\Persist");
-    if !persist_dir.exists() {
-        return Err("未找到微信 Persist 表情目录".into());
+    let thumb_dir = account_dir.join("business\\emoticon\\Thumb");
+    if thumb_dir.exists() {
+        candidate_dirs.push(thumb_dir);
+    }
+    if persist_dir.exists() {
+        candidate_dirs.push(persist_dir);
+    }
+
+    if candidate_dirs.is_empty() {
+        return Err("未找到微信表情目录".into());
     }
 
     // 挑选一个样本文件用于验证解密密钥
     let mut sample_cipher_block = Vec::new();
     let mut encrypted_files = Vec::new();
 
-    for entry in WalkDir::new(&persist_dir).into_iter().filter_map(|e| e.ok()) {
-        if entry.file_type().is_file() {
-            if let Ok(meta) = entry.metadata() {
-                if meta.len() >= 16 && meta.len() % 16 == 0 {
-                    let p = entry.into_path();
-                    if sample_cipher_block.is_empty() {
-                        if let Ok(bytes) = fs::read(&p) {
-                            if bytes.len() >= 16 {
-                                sample_cipher_block = bytes[..16].to_vec();
+    for dir in &candidate_dirs {
+        for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+            if entry.file_type().is_file() {
+                if let Ok(meta) = entry.metadata() {
+                    if meta.len() >= 16 && meta.len() % 16 == 0 {
+                        let p = entry.into_path();
+                        if sample_cipher_block.is_empty() {
+                            if let Ok(bytes) = fs::read(&p) {
+                                if bytes.len() >= 16 {
+                                    sample_cipher_block = bytes[..16].to_vec();
+                                }
                             }
                         }
+                        encrypted_files.push(p);
                     }
-                    encrypted_files.push(p);
                 }
             }
         }
