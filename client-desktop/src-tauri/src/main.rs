@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod importer;
+mod wx_decrypt;
 
 use arboard::{Clipboard, ImageData};
 use directories::ProjectDirs;
@@ -253,6 +254,159 @@ async fn run_platform_import(app: AppHandle, dir_path: String, platform: String)
 }
 
 #[tauri::command]
+async fn run_wechat_decrypt_export(app: AppHandle) -> Result<wx_decrypt::WeChatExportSummary, String> {
+    use walkdir::WalkDir;
+    let cfg = load_config();
+    let client = reqwest::Client::new();
+
+    // 寻找本机微信数据目录
+    let mut wx_dirs = Vec::new();
+    if let Ok(userprofile) = std::env::var("USERPROFILE") {
+        wx_dirs.push(PathBuf::from(&userprofile).join("Documents\\WeChat Files"));
+    }
+    wx_dirs.push(PathBuf::from("D:\\xwechat_files"));
+
+    let mut found_account_dir = None;
+    let mut target_wxid = String::new();
+
+    for root in wx_dirs {
+        if root.exists() {
+            for entry in WalkDir::new(&root).max_depth(2).into_iter().filter_map(|e| e.ok()) {
+                let name = entry.file_name().to_string_lossy();
+                if name.starts_with("wxid_") {
+                    let emo_dir = entry.path().join("business\\emoticon\\Persist");
+                    if emo_dir.exists() {
+                        let raw_name = name.to_string();
+                        // 提取纯净 wxid (例如 wxid_rdqwsh14dmmy22_7f72 -> wxid_rdqwsh14dmmy22)
+                        let clean_wxid = if let Some(idx) = raw_name.rfind('_') {
+                            if idx > 5 {
+                                raw_name[..idx].to_string()
+                            } else {
+                                raw_name
+                            }
+                        } else {
+                            raw_name
+                        };
+                        target_wxid = clean_wxid;
+                        found_account_dir = Some(entry.path().to_path_buf());
+                        break;
+                    }
+                }
+            }
+        }
+        if found_account_dir.is_some() {
+            break;
+        }
+    }
+
+    let account_dir = match found_account_dir {
+        Some(d) => d,
+        None => return Err("未找到本地微信 4.x 数据目录".into()),
+    };
+
+    let persist_dir = account_dir.join("business\\emoticon\\Persist");
+    if !persist_dir.exists() {
+        return Err("未找到微信 Persist 表情目录".into());
+    }
+
+    // 挑选一个样本文件用于验证解密密钥
+    let mut sample_cipher_block = Vec::new();
+    let mut encrypted_files = Vec::new();
+
+    for entry in WalkDir::new(&persist_dir).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_type().is_file() {
+            if let Ok(meta) = entry.metadata() {
+                if meta.len() >= 16 && meta.len() % 16 == 0 {
+                    let p = entry.into_path();
+                    if sample_cipher_block.is_empty() {
+                        if let Ok(bytes) = fs::read(&p) {
+                            if bytes.len() >= 16 {
+                                sample_cipher_block = bytes[..16].to_vec();
+                            }
+                        }
+                    }
+                    encrypted_files.push(p);
+                }
+            }
+        }
+    }
+
+    if sample_cipher_block.is_empty() || encrypted_files.is_empty() {
+        return Err("微信表情目录中无有效加密文件".into());
+    }
+
+    // 扫描内存中的 seed
+    let seed = wx_decrypt::scan_and_find_seed(&target_wxid, &sample_cipher_block)
+        .ok_or_else(|| "未能从正在运行的微信内存中抓取到有效解密 Seed，请确保微信已正常登录！".to_string())?;
+
+    let aes_key = wx_decrypt::derive_key(&seed, &target_wxid);
+    let total_found = encrypted_files.len();
+    let mut decrypted_count = 0;
+    let mut failed_count = 0;
+
+    for (idx, p) in encrypted_files.iter().enumerate() {
+        let fname = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+        app.emit("import-progress", ImportProgressEvent {
+            current: idx + 1,
+            total: total_found,
+            current_name: fname.clone(),
+            status: "decrypting".into(),
+        }).ok();
+
+        let cipher_bytes = match fs::read(p) {
+            Ok(b) => b,
+            Err(_) => {
+                failed_count += 1;
+                continue;
+            }
+        };
+
+        let decrypted_bytes = match wx_decrypt::decrypt_full_file(&aes_key, &cipher_bytes) {
+            Ok(b) => b,
+            Err(_) => {
+                failed_count += 1;
+                continue;
+            }
+        };
+
+        let (ext, mime) = match wx_decrypt::is_valid_decrypted_header(&decrypted_bytes) {
+            Some(pair) => pair,
+            None => {
+                failed_count += 1;
+                continue;
+            }
+        };
+
+        let upload_name = format!("{}_{}.{}", fname, idx + 1, ext);
+        match importer::upload_image(
+            &client,
+            &cfg.server_url,
+            &cfg.token,
+            &upload_name,
+            decrypted_bytes,
+            mime,
+            "wechat",
+        )
+        .await
+        {
+            Ok(_) => decrypted_count += 1,
+            Err(_) => failed_count += 1,
+        }
+    }
+
+    Ok(wx_decrypt::WeChatExportSummary {
+        total_found,
+        decrypted_count,
+        failed_count,
+        seed_used: seed,
+        message: format!(
+            "微信表情解密完成：共发现 {} 个加密文件，成功解密并入库 {} 张，失败 {} 个",
+            total_found, decrypted_count, failed_count
+        ),
+    })
+}
+
+#[tauri::command]
 fn start_drag(window: Window) {
     window.start_dragging().ok();
 }
@@ -388,6 +542,7 @@ fn main() {
             pick_and_import_local_files,
             import_files_from_paths,
             run_platform_import,
+            run_wechat_decrypt_export,
             hide_window,
             start_drag,
             open_web_browser,

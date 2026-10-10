@@ -551,6 +551,16 @@
           <span>重新扫描</span>
         </button>
       </div>
+
+      <!-- 微信专享内存动态解密导出卡片 -->
+      <div id="wx-decrypt-card" style="background:#232734; border:1px solid #384259; border-radius:6px; padding:10px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="font-size:11px; font-weight:600; color:#38bdf8;">微信 4.x 内存解密一键导出</span>
+          <span style="font-size:10px; color:#8e94a5;">微信登录中即可全自动提取 Seed 并解密入库</span>
+        </div>
+        <button id="btn-run-wx-decrypt" style="background:#0284c7; border:none; color:#fff; font-size:11px; font-weight:600; padding:5px 12px; border-radius:4px; cursor:pointer; white-space:nowrap;">解密导入</button>
+      </div>
+
       <div id="detected-platforms-list" style="display:flex; flex-direction:column; gap:6px;">
         <div style="font-size:11px; color:#8e94a5;">正在检测本地 QQ / 微信 / 企业微信...</div>
       </div>
@@ -1296,6 +1306,31 @@
       listEl.innerHTML = `<div style="font-size:11px; color:#e53e3e;">检测失败: ${e}</div>`;
     }
   }
+
+  // 绑定微信一键内存解密导出
+  document.getElementById("btn-run-wx-decrypt").onclick = async () => {
+    const btn = document.getElementById("btn-run-wx-decrypt");
+    btn.disabled = true;
+    btn.textContent = "解密中...";
+    const statusBox = document.getElementById("import-status-box");
+    statusBox.textContent = "正在扫描微信进程内存提取解密密钥...";
+    updateProgressBar(0, 100, "扫描内存提取密钥...");
+
+    try {
+      const res = await invoke("run_wechat_decrypt_export");
+      statusBox.textContent = res.message;
+      showToast(res.message, null, 3500);
+      loadTags();
+      loadItems();
+    } catch (err) {
+      statusBox.textContent = "微信解密失败: " + err;
+      showToast("微信解密失败: " + err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "解密导入";
+      hideProgressBar();
+    }
+  };
 
   document.getElementById("btn-import-open").onclick = () => {
     document.getElementById("import-modal").style.display = "flex";
