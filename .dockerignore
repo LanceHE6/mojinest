@@ -1,0 +1,5 @@
+.git
+client-desktop/src-tauri/target
+client-desktop/node_modules
+data
+dist
