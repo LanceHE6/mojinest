@@ -716,6 +716,23 @@ func (r *Repo) Enqueue(ctx context.Context, itemID int64, kind string) error {
 	return err
 }
 
+// EnqueueAllUnanalyzed adds tag jobs for all active items that don't have an AI record or active job.
+func (r *Repo) EnqueueAllUnanalyzed(ctx context.Context) (int64, error) {
+	now := time.Now().Unix()
+	res, err := r.DB.ExecContext(ctx, `
+		INSERT INTO jobs(item_id, kind, status, created_at, updated_at)
+		SELECT i.id, 'tag', 'pending', ?, ?
+		FROM items i
+		WHERE i.deleted_at = 0
+		  AND NOT EXISTS (SELECT 1 FROM item_ai a WHERE a.item_id = i.id)
+		  AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.item_id = i.id AND j.status IN ('pending', 'running'))
+	`, now, now)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // ResetFailedForRetry puts failed jobs back in the queue.
 func (r *Repo) ResetFailedForRetry(ctx context.Context) (int64, error) {
 	res, err := r.DB.ExecContext(ctx,

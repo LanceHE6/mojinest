@@ -41,10 +41,26 @@ type Result struct {
 	Model       string   `json:"-"`
 }
 
+// BuildPrompt generates the system prompt incorporating fixed categories.
+func BuildPrompt(customPrompt string, categories []string) string {
+	if len(categories) == 0 {
+		categories = []string{
+			"沙雕搞笑", "可爱萌系", "阴阳吐槽", "无语尴尬", "开心点赞", "悲伤emo", "愤怒暴躁", "问号疑惑",
+		}
+	}
+	catList := strings.Join(categories, "、")
+	return fmt.Sprintf(`你在给一个表情包（贴图/梗图）库做自动分类。请只输出一个 JSON 对象，不要有任何多余文字、不要用 markdown 代码块。
+字段：
+- "description": 一句话描述这张图的内容和情绪（中文，40 字以内）
+- "ocr": 图中出现的文字，逐条用 / 分隔；没有文字就空字符串
+- "tags": 从以下候选大类中选择 1 到 2 个最匹配的分类作为标签数组，严禁生成候选列表之外的任何标签：%s`, catList)
+}
+
 // New builds a tagger pointed at an OpenAI-compatible endpoint.
-func New(baseURL, apiKey, model, prompt string, timeout time.Duration) *Tagger {
-	if strings.TrimSpace(prompt) == "" {
-		prompt = defaultPrompt
+func New(baseURL, apiKey, model, prompt string, categories []string, timeout time.Duration) *Tagger {
+	finalPrompt := prompt
+	if strings.TrimSpace(finalPrompt) == "" || len(categories) > 0 {
+		finalPrompt = BuildPrompt(prompt, categories)
 	}
 	if timeout <= 0 {
 		timeout = 120 * time.Second
@@ -53,7 +69,7 @@ func New(baseURL, apiKey, model, prompt string, timeout time.Duration) *Tagger {
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		APIKey:  apiKey,
 		Model:   model,
-		Prompt:  prompt,
+		Prompt:  finalPrompt,
 		Timeout: timeout,
 		Client:  &http.Client{Timeout: timeout},
 		MaxSide: 512,

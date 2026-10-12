@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -26,6 +27,7 @@ import (
 	"mojinest/internal/imageutil"
 	"mojinest/internal/repo"
 	"mojinest/internal/store"
+	"mojinest/internal/tagger"
 	"mojinest/internal/webui"
 )
 
@@ -99,6 +101,11 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /api/config/storage", s.authed(s.handleGetStorageConfig))
 	mux.HandleFunc("POST /api/config/storage", s.authed(s.handleSetStorageConfig))
+
+	mux.HandleFunc("GET /api/config/ai", s.authed(s.handleGetAIConfig))
+	mux.HandleFunc("POST /api/config/ai", s.authed(s.handleSetAIConfig))
+	mux.HandleFunc("POST /api/ai/test", s.authed(s.handleTestAI))
+	mux.HandleFunc("POST /api/ai/batch-tag", s.authed(s.handleBatchTag))
 
 	mux.HandleFunc("GET /api/files/{sha}", s.authed(s.handleFile))
 	mux.HandleFunc("GET /api/thumbs/{sha}", s.authed(s.handleThumb))
@@ -789,6 +796,101 @@ func (s *Server) handleSetStorageConfig(w http.ResponseWriter, r *http.Request) 
 		"ok":      true,
 		"message": "服务端存储引擎配置成功并已实时生效！",
 		"backend": in.Backend,
+	})
+}
+
+// --- AI Tagger config ---
+
+func (s *Server) handleGetAIConfig(w http.ResponseWriter, r *http.Request) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	writeJSON(w, http.StatusOK, s.Cfg.Tagger)
+}
+
+func (s *Server) handleSetAIConfig(w http.ResponseWriter, r *http.Request) {
+	var in config.TagConfig
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid payload")
+		return
+	}
+
+	s.mu.Lock()
+	s.Cfg.Tagger = in
+	cfgPath := os.Getenv("MOJINEST_CONFIG")
+	if cfgPath == "" {
+		cfgPath = config.DefaultPath()
+	}
+	_ = s.Cfg.Save(cfgPath)
+	s.mu.Unlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"message": "AI 模型配置已更新并实时生效",
+		"tagger":  in,
+	})
+}
+
+func (s *Server) handleTestAI(w http.ResponseWriter, r *http.Request) {
+	var in config.TagConfig
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		s.mu.RLock()
+		in = s.Cfg.Tagger
+		s.mu.RUnlock()
+	}
+	if in.BaseURL == "" {
+		writeErr(w, http.StatusBadRequest, "BaseURL 不能为空")
+		return
+	}
+	if in.Model == "" {
+		in.Model = "gemini-3.8-flash-medium"
+	}
+	tg := tagger.New(in.BaseURL, in.APIKey, in.Model, in.Prompt, in.Categories, 15*time.Second)
+	// 用一个最小 1x1 透明 PNG 测试连通性
+	testPNG := []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+		0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+		0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+		0x42, 0x60, 0x82,
+	}
+	res, err := tg.Analyze(r.Context(), testPNG)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "测试连接失败: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":          true,
+		"message":     "模型连接成功！",
+		"description": res.Description,
+		"tags":        res.Tags,
+	})
+}
+
+func (s *Server) handleBatchTag(w http.ResponseWriter, r *http.Request) {
+	// 清空历史打标生成的 ai 标签，以便按新大类全新重打
+	if r.URL.Query().Get("clean") == "1" {
+		_, _ = s.Repo.DB.ExecContext(r.Context(), `
+			DELETE FROM item_tags WHERE tag_id IN (SELECT id FROM tags WHERE source='ai')
+		`)
+		_, _ = s.Repo.DB.ExecContext(r.Context(), `
+			DELETE FROM tags WHERE source='ai'
+		`)
+		_, _ = s.Repo.DB.ExecContext(r.Context(), `
+			DELETE FROM item_ai
+		`)
+		_, _ = s.Repo.DB.ExecContext(r.Context(), `
+			DELETE FROM jobs WHERE kind='tag'
+		`)
+	}
+	n, err := s.Repo.EnqueueAllUnanalyzed(r.Context())
+	if err != nil {
+		s.fail(w, "batch tag", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":       true,
+		"enqueued": n,
+		"message":  fmt.Sprintf("已成功提交 %d 个表情按最新大类重新打标", n),
 	})
 }
 

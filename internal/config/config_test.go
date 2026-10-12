@@ -102,7 +102,7 @@ func TestPathsAndDirs(t *testing.T) {
 			t.Errorf("missing dir %s: %v", p, err)
 		}
 	}
-	if filepath.Base(c.DBPath()) != "mojinest.db" {
+	if filepath.Base(c.DBPath()) != "mojinest_local.db" {
 		t.Errorf("db path = %s", c.DBPath())
 	}
 }

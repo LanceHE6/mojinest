@@ -18,13 +18,14 @@ type S3Config struct {
 }
 
 type TagConfig struct {
-	Enabled       bool   `json:"enabled"`
-	BaseURL       string `json:"base_url"`
-	APIKey        string `json:"api_key"`
-	Model         string `json:"model"`
-	TimeoutSec    int    `json:"timeout_sec"`
-	MaxConcurrent int    `json:"max_concurrent"`
-	Prompt        string `json:"prompt"`
+	Enabled       bool     `json:"enabled"`
+	BaseURL       string   `json:"base_url"`
+	APIKey        string   `json:"api_key"`
+	Model         string   `json:"model"`
+	TimeoutSec    int      `json:"timeout_sec"`
+	MaxConcurrent int      `json:"max_concurrent"`
+	Prompt        string   `json:"prompt"`
+	Categories    []string `json:"categories"`
 }
 
 type Config struct {
@@ -55,7 +56,14 @@ func defaults() *Config {
 		DataDir: "data",
 		Storage: "local",
 		S3:      S3Config{Region: "auto"},
-		Tagger:  TagConfig{Model: "qwen-vl-max", TimeoutSec: 120, MaxConcurrent: 3},
+		Tagger: TagConfig{
+			Model:         "gemini-3.8-flash-medium",
+			TimeoutSec:    120,
+			MaxConcurrent: 3,
+			Categories: []string{
+				"沙雕搞笑", "可爱萌系", "阴阳吐槽", "无语尴尬", "开心点赞", "悲伤emo", "愤怒暴躁", "问号疑惑",
+			},
+		},
 	}
 }
 

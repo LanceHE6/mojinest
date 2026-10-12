@@ -68,7 +68,7 @@ func (w *Worker) handle(ctx context.Context, job *repo.Job) {
 		// unconfigured instance neither mislabels nor spams the log.
 		select {
 		case <-ctx.Done():
-		case <-time.After(w.parkDelay):
+		case <-time.After(1 * time.Second):
 		}
 		_ = w.Repo.RequeueJob(ctx, job.ID, "tagger disabled")
 		return
@@ -95,7 +95,7 @@ func (w *Worker) handle(ctx context.Context, job *repo.Job) {
 		return
 	}
 	tg := tagger.New(w.Cfg.Tagger.BaseURL, w.Cfg.Tagger.APIKey, w.Cfg.Tagger.Model,
-		w.Cfg.Tagger.Prompt, time.Duration(w.Cfg.Tagger.TimeoutSec)*time.Second)
+		w.Cfg.Tagger.Prompt, w.Cfg.Tagger.Categories, time.Duration(w.Cfg.Tagger.TimeoutSec)*time.Second)
 	res, err := tg.Analyze(ctx, png)
 	if err != nil {
 		w.Log.Warn("tagger failed", "item", item.ID, "err", err)

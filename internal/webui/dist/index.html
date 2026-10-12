@@ -5,265 +5,2083 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mojinest</title>
 <style>
-  :root { color-scheme: dark; --bg:#12131a; --card:#1b1d26; --line:#2c2f3d; --fg:#e6e8f0; --mut:#8b90a5; --acc:#5b8cff; }
-  * { box-sizing: border-box; }
-  body { margin:0; font: 14px/1.5 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--fg); }
-  header { position:sticky; top:0; z-index:5; display:flex; gap:10px; align-items:center; padding:10px 14px; background:rgba(18,19,26,.92); border-bottom:1px solid var(--line); backdrop-filter:blur(6px); }
-  h1 { font-size:16px; margin:0 8px 0 0; letter-spacing:.5px; }
-  h1 span { color:var(--acc); }
-  input,select,button,textarea { font:inherit; color:var(--fg); background:#20222d; border:1px solid var(--line); border-radius:8px; padding:7px 10px; }
-  button { cursor:pointer; }
-  button:hover { border-color:var(--acc); }
-  #q { flex:1; min-width:120px; }
-  main { padding:14px; }
-  #grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; }
-  .card { position:relative; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; cursor:pointer; aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
-  .card:hover { border-color:var(--acc); }
-  .card img { max-width:100%; max-height:100%; object-fit:contain; }
-  .card .badge { position:absolute; left:6px; top:6px; font-size:10px; padding:1px 5px; border-radius:6px; background:#000a; color:#cfd4e6; }
-  .card .tagline { position:absolute; left:0; right:0; bottom:0; font-size:11px; padding:4px 6px; background:linear-gradient(transparent,#000c); color:#d8dcec; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  #bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; color:var(--mut); }
-  #tags { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
-  #tags button { font-size:12px; padding:4px 9px; border-radius:999px; }
-  #tags button.on { background:var(--acc); border-color:var(--acc); color:#fff; }
-  #empty, #status { color:var(--mut); padding:24px 0; text-align:center; }
-  #login { max-width:340px; margin:12vh auto; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; }
-  #login h2 { margin:0 0 4px; font-size:16px; }
-  #login p { color:var(--mut); margin:0 0 14px; font-size:12px; }
-  #login input { width:100%; margin-bottom:10px; }
-  #login button { width:100%; background:var(--acc); border-color:var(--acc); color:#fff; }
-  #toast { position:fixed; left:50%; bottom:26px; transform:translateX(-50%); background:#000d; padding:8px 14px; border-radius:10px; opacity:0; transition:.2s; pointer-events:none; }
-  #toast.show { opacity:1; }
-  .hidden { display:none !important; }
+  :root {
+    color-scheme: dark;
+    --bg: #14151b;
+    --card: #1d1f27;
+    --card-hover: #262934;
+    --line: #2b2e3b;
+    --fg: #e8eaed;
+    --mut: #8e94a5;
+    --acc: #4f80ff;
+    --acc-hover: #6792ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font: 13px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    user-select: none;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    border: none;
+  }
+
+  /* 顶部紧凑工具栏与搜索框 */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #181a22;
+    border-bottom: 1px solid var(--line);
+    cursor: move;
+  }
+  .win-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--fg);
+    letter-spacing: 0.5px;
+  }
+  .header-actions {
+    display: flex;
+    gap: 4px;
+    -webkit-app-region: no-drag;
+  }
+  .btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--mut);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .btn-icon svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 36px;
+  }
+  .btn-icon:hover {
+    color: var(--fg);
+    background: #282b37;
+  }
+  .btn-close:hover {
+    background: #e53e3e !important;
+    color: #fff !important;
+  }
+
+  /* 标题下方的专属搜索栏 */
+  .search-container {
+    padding: 8px 12px;
+    background: #161820;
+    border-bottom: 1px solid var(--line);
+  }
+  .search-wrap {
+    position: relative;
+    width: 100%;
+  }
+  #search {
+    width: 100%;
+    background: #232631;
+    border: 1px solid var(--line);
+    color: var(--fg);
+    border-radius: 6px;
+    padding: 6px 10px 6px 28px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #search:focus {
+    border-color: var(--acc);
+  }
+  .search-icon {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--mut);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .search-icon svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 36px;
+  }
+
+  /* 标签胶囊栏 */
+  #tag-bar {
+    display: flex;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #161820;
+    overflow-x: auto;
+    border-bottom: 1px solid #20232e;
+    scrollbar-width: thin;
+    scrollbar-color: #2e3344 transparent;
+  }
+  #tag-bar::-webkit-scrollbar {
+    height: 4px;
+  }
+  #tag-bar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  #tag-bar::-webkit-scrollbar-thumb {
+    background: #2e3344;
+    border-radius: 4px;
+  }
+  #tag-bar::-webkit-scrollbar-thumb:hover {
+    background: #424a61;
+  }
+  .tag-pill {
+    white-space: nowrap;
+    padding: 3px 8px;
+    border-radius: 12px;
+    background: #21242e;
+    color: var(--mut);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tag-pill:hover {
+    color: var(--fg);
+    background: #2a2e3b;
+  }
+  .tag-pill.active {
+    background: var(--acc);
+    color: #fff;
+  }
+
+  /* 网格区域 */
+  main {
+    flex: 1;
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px;
+    position: relative;
+    width: 100%;
+  }
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 14px;
+    width: 100%;
+  }
+  .item-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    aspect-ratio: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.1s, border-color 0.15s, background 0.15s;
+  }
+  .item-card:hover {
+    transform: scale(1.02);
+    border-color: var(--acc);
+    background: var(--card-hover);
+  }
+  .item-card.selected {
+    border-color: #4f80ff !important;
+    background: #1e263d !important;
+    box-shadow: 0 0 0 2px #4f80ff;
+  }
+  .item-card img {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+    pointer-events: none;
+  }
+  .anim-badge {
+    position: absolute;
+    left: 6px;
+    top: 6px;
+    background: rgba(0,0,0,0.7);
+    color: #a0aec0;
+    font-size: 10px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    pointer-events: none;
+  }
+  .card-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(10, 11, 15, 0.95));
+    font-size: 11px;
+    color: #cbd5e1;
+    padding: 4px 6px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    transition: opacity 0.15s;
+  }
+  /* 下 1/3 悬浮复制触发按钮 */
+  .copy-hover-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 33.33%;
+    background: rgba(79, 128, 255, 0.92);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    opacity: 0;
+    pointer-events: auto;
+    transition: opacity 0.15s ease;
+    z-index: 10;
+  }
+  .item-card:hover .copy-hover-bar {
+    opacity: 1;
+  }
+  .item-card:hover .card-label {
+    opacity: 0;
+  }
+
+  /* 多选常驻状态栏 */
+  #selection-bar {
+    display: none;
+    position: fixed;
+    bottom: 34px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1c202c;
+    border: 1px solid #4f80ff;
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    z-index: 140;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+    align-items: center;
+    gap: 12px;
+  }
+  #selection-bar.active {
+    display: flex;
+  }
+  .btn-clear-selection {
+    background: #2b3042;
+    border: 1px solid #3d435a;
+    color: #cbd5e1;
+    padding: 2px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  .btn-clear-selection:hover {
+    background: #3b425b;
+    color: #fff;
+  }
+
+  /* 框选矩形框 */
+  #drag-selection-box {
+    position: fixed;
+    border: 1.5px solid #4f80ff;
+    background: rgba(79, 128, 255, 0.2);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 999;
+    display: none;
+  }
+
+  /* 提示框 / Toast */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 22, 30, 0.95);
+    border: 1px solid var(--acc);
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 16px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 200;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #toast.show { opacity: 1; pointer-events: auto; }
+  .btn-undo {
+    background: #4f80ff;
+    border: none;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .btn-undo:hover {
+    background: #6894ff;
+  }
+
+  /* 自定义右键上下文菜单 */
+  #context-menu {
+    position: fixed;
+    display: none;
+    background: #1d202b;
+    border: 1px solid #333748;
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    z-index: 200;
+    width: 140px;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .menu-item {
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--fg);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s;
+  }
+  .menu-item svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 36px;
+    flex-shrink: 0;
+  }
+  .menu-item:hover {
+    background: #2b3042;
+  }
+  .menu-item.danger {
+    color: #f87171;
+  }
+  .menu-item.danger:hover {
+    background: rgba(239, 68, 68, 0.15);
+  }
+
+  /* 大图查看模态窗口 */
+  #preview-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 16, 0.88);
+    backdrop-filter: blur(4px);
+    z-index: 180;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 20px;
+  }
+  #preview-img {
+    max-width: 90%;
+    max-height: 80vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+  }
+  #preview-title {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #cbd5e1;
+  }
+
+  /* 拖拽上传覆盖层 */
+  #drop-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(14, 16, 24, 0.92);
+    border: 2px dashed var(--acc);
+    border-radius: 10px;
+    z-index: 300;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+  }
+  #drop-overlay.active {
+    display: flex;
+  }
+  #drop-overlay svg {
+    width: 48px;
+    height: 48px;
+    stroke: var(--acc);
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 32px;
+    animation: bounce 1s infinite alternate ease-in-out;
+  }
+  @keyframes bounce {
+    from { transform: translateY(0); }
+    to { transform: translateY(-8px); }
+  }
+
+  /* 进度条指示容器 */
+  .progress-wrap {
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    background: #181b24;
+    border: 1px solid #2b2f3d;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 6px;
+  }
+  .progress-bar-bg {
+    width: 100%;
+    height: 6px;
+    background: #252836;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #4f80ff, #739aff);
+    transition: width 0.15s ease;
+  }
+  /* 底部状态 */
+  footer {
+    padding: 4px 12px;
+    background: #14161d;
+    border-top: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--mut);
+  }
+  .empty-state {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--mut);
+    text-align: center;
+    font-size: 12px;
+  }
 </style>
 </head>
 <body>
-<div id="login">
-  <h2>Mojinest <span style="color:var(--acc)">贴图小窝</span></h2>
-  <p>输入服务端 Token 进入你的表情库</p>
-  <input id="token" type="password" placeholder="Token" autocomplete="current-password">
-  <button onclick="login()">进入</button>
-  <div id="loginmsg" style="color:#ff8080;font-size:12px;margin-top:8px"></div>
+
+<header>
+  <span class="win-title">Mojinest</span>
+  <div class="header-actions">
+    <button class="btn-icon" id="btn-import-open" title="导入表情">
+      <svg viewBox="0 0 512 512"><path d="M320,367.79,256,431.79l-64-64"/><line x1="256" y1="416" x2="256" y2="272"/><path d="M380.93,207.74A112,112,0,0,0,163.68,172a110.4,110.4,0,0,0-5.83,28.81A104,104,0,0,0,48,304c0,57.34,46.66,104,104,104h32"/><path d="M328,408h36a88,88,0,0,0,88-88c0-41.84-29.39-76.71-68.84-85.22"/></svg>
+    </button>
+    <button class="btn-icon" id="btn-refresh" title="刷新">
+      <svg viewBox="0 0 512 512"><path d="M320,146s24.36-12-64-12a160,160,0,1,0,160,160"/><polyline points="256 58 336 138 256 218"/></svg>
+    </button>
+    <button class="btn-icon" id="btn-settings-open" title="客户端设置">
+      <svg viewBox="0 0 512 512"><path d="M262.29,192.31a64,64,0,1,0,57.4,57.4A64.13,64.13,0,0,0,262.29,192.31ZM256,288a32,32,0,1,1,32-32A32,32,0,0,1,256,288Z"/><path d="M416.39,222.75l-42.67-6.93a144.38,144.38,0,0,0-12-28.82l23.51-36.21a16,16,0,0,0-2.31-20.73L354.34,101.5a16,16,0,0,0-20.73-2.31l-36.21,23.51a144.38,144.38,0,0,0-28.82-12L261.65,68a16,16,0,0,0-15.82-13.43H210.17A16,16,0,0,0,194.35,68l-6.93,42.67a144.38,144.38,0,0,0-28.82,12L122.39,99.19a16,16,0,0,0-20.73,2.31L73.1,130.06a16,16,0,0,0-2.31,20.73l23.51,36.21a144.38,144.38,0,0,0-12,28.82l-42.67,6.93A16,16,0,0,0,26.2,238.57v34.86a16,16,0,0,0,13.43,15.82l42.67,6.93a144.38,144.38,0,0,0,12,28.82L70.79,361.21a16,16,0,0,0,2.31,20.73l28.56,28.56a16,16,0,0,0,20.73,2.31l36.21-23.51a144.38,144.38,0,0,0,28.82,12l6.93,42.67a16,16,0,0,0,15.82,13.43h35.66a16,16,0,0,0,15.82-13.43l6.93-42.67a144.38,144.38,0,0,0,28.82-12l36.21,23.51a16,16,0,0,0,20.73-2.31l28.56-28.56a16,16,0,0,0,2.31-20.73l-23.51-36.21a144.38,144.38,0,0,0,12-28.82l42.67-6.93a16,16,0,0,0,13.43-15.82V238.57A16,16,0,0,0,416.39,222.75Z"/></svg>
+    </button>
+    <button class="btn-icon btn-close" id="btn-hide" title="收起 (Esc)">
+      <svg viewBox="0 0 512 512"><line x1="368" y1="368" x2="144" y2="144"/><line x1="368" y1="144" x2="144" y2="368"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- 搜索框位于标题栏正下方 -->
+<div class="search-container">
+  <div class="search-wrap">
+    <span class="search-icon">
+      <svg viewBox="0 0 512 512"><path d="M221.09,64A157.09,157.09,0,1,0,378.18,221.09,157.1,157.1,0,0,0,221.09,64Z"/><line x1="338.29" y1="338.29" x2="448" y2="448"/></svg>
+    </span>
+    <input id="search" placeholder="搜表情名、标签、文字、情绪..." autofocus>
+  </div>
 </div>
 
-<div id="app" class="hidden">
-  <header>
-    <h1>Moji<span>nest</span></h1>
-    <input id="q" placeholder="搜索：名称 / 标签 / 备注 / AI 描述 / 图中文字" oninput="debouncedLoad()">
-    <button onclick="pickFile()">上传</button>
-    <input id="file" type="file" accept="image/*" multiple class="hidden" onchange="upload(this.files)">
-    <select id="sort" onchange="load()">
-      <option value="newest">最新</option>
-      <option value="oldest">最早</option>
-      <option value="name">名称</option>
-      <option value="used">常用</option>
-    </select>
-    <button id="fav" onclick="toggleFav()">★ 收藏</button>
-    <button id="trash" onclick="toggleTrash()">🗑 回收站</button>
-  </header>
-  <main>
-    <div id="bar"><span id="count"></span><span id="store"></span><span id="jobs"></span></div>
-    <div id="tags"></div>
-    <div id="grid"></div>
-    <div id="empty" class="hidden">这里还空着 —— 点右上「上传」把你的表情搬进来</div>
-    <div id="status"></div>
-  </main>
-  <div id="toast"></div>
+<div id="tag-bar">
+  <div class="tag-pill active" data-tag="">全部</div>
 </div>
+
+<main>
+  <div id="grid"></div>
+  <div id="empty" class="empty-state" style="display:none;">未找到匹配的表情包</div>
+</main>
+
+<footer>
+  <span id="status-info">已就绪</span>
+  <span id="count-info">0 张</span>
+</footer>
+
+<!-- 导入模态窗口 -->
+<div id="import-modal" style="display:none; position:fixed; inset:0; background:rgba(10,12,16,0.85); z-index:100; backdrop-filter:blur(3px); align-items:center; justify-content:center;">
+  <div style="background:#1c1e27; border:1px solid #323646; border-radius:10px; width:360px; max-height:85vh; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:14px; overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2b2f3d; padding-bottom:8px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <svg style="width:16px; height:16px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><path d="M320,367.79,256,431.79l-64-64"/><line x1="256" y1="416" x2="256" y2="272"/><path d="M380.93,207.74A112,112,0,0,0,163.68,172a110.4,110.4,0,0,0-5.83,28.81A104,104,0,0,0,48,304c0,57.34,46.66,104,104,104h32"/><path d="M328,408h36a88,88,0,0,0,88-88c0-41.84-29.39-76.71-68.84-85.22"/></svg>
+        <span style="font-weight:600; font-size:14px; color:#fff;">批量导入表情</span>
+      </div>
+      <button id="btn-close-import" class="btn-icon" title="关闭">
+        <svg viewBox="0 0 512 512"><line x1="368" y1="368" x2="144" y2="144"/><line x1="368" y1="144" x2="144" y2="368"/></svg>
+      </button>
+    </div>
+
+    <!-- 方式1：本地图片选择 -->
+    <div style="background:#232734; border:1px solid #323646; border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; align-items:center; gap:6px; font-weight:600; font-size:12px; color:#e2e8f0;">
+        <svg style="width:14px; height:14px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><path d="M64,192V120a40,40,0,0,1,40-40h75.89a40,40,0,0,1,22.19,6.72l27.84,18.56A40,40,0,0,0,252.11,112H408a40,40,0,0,1,40,40v40"/><path d="M479.9,226.55,444.34,402A48,48,0,0,1,397.38,440H114.62A48,48,0,0,1,67.66,402L32.1,226.55A32,32,0,0,1,63.31,192H448.69A32,32,0,0,1,479.9,226.55Z"/></svg>
+        <span>本地文件导入</span>
+      </div>
+      <div style="font-size:11px; color:#8e94a5;">从电脑相册或文件夹中选择图片文件（支持 PNG, GIF, JPG, WEBP）。</div>
+      <button id="btn-pick-files" style="background:#4f80ff; border:none; color:#fff; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:500; align-self:flex-start;">选择并上传本地图片</button>
+    </div>
+
+    <!-- 方式2：自动扫描社交平台 -->
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:6px; font-weight:600; font-size:12px; color:#e2e8f0;">
+          <svg style="width:14px; height:14px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><path d="M336,448H416a48,48,0,0,0,48-48V320"/><path d="M464,192V112a48,48,0,0,0-48-48H336"/><path d="M176,64H96A48,48,0,0,0,48,112v80"/><path d="M48,320v80a48,48,0,0,0,48,48h80"/></svg>
+          <span>自动检测聊天软件表情库</span>
+        </div>
+        <button id="btn-rescan-platforms" style="background:transparent; border:none; color:#4f80ff; cursor:pointer; font-size:11px; display:flex; align-items:center; gap:4px;">
+          <svg style="width:12px; height:12px; stroke:currentColor; fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><path d="M320,146s24.36-12-64-12a160,160,0,1,0,160,160"/><polyline points="256 58 336 138 256 218"/></svg>
+          <span>重新扫描</span>
+        </button>
+      </div>
+
+      <!-- 微信专享内存动态解密导出卡片 -->
+      <div id="wx-decrypt-card" style="background:#232734; border:1px solid #384259; border-radius:6px; padding:10px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="font-size:11px; font-weight:600; color:#38bdf8;">微信 4.x 内存解密一键导出</span>
+          <span style="font-size:10px; color:#8e94a5;">微信登录中即可全自动提取 Seed 并解密入库</span>
+        </div>
+        <button id="btn-run-wx-decrypt" style="background:#0284c7; border:none; color:#fff; font-size:11px; font-weight:600; padding:5px 12px; border-radius:4px; cursor:pointer; white-space:nowrap;">解密导入</button>
+      </div>
+
+      <div id="detected-platforms-list" style="display:flex; flex-direction:column; gap:6px;">
+        <div style="font-size:11px; color:#8e94a5;">正在检测本地 QQ / 微信 / 企业微信...</div>
+      </div>
+    </div>
+
+    <div id="import-status-box" style="font-size:11px; color:#8e94a5; border-top:1px solid #2b2f3d; padding-top:8px;"></div>
+
+    <!-- 动态进度条 -->
+    <div id="import-progress-wrap" class="progress-wrap">
+      <div style="display:flex; justify-content:space-between; font-size:10px; color:#cbd5e1;">
+        <span id="import-progress-title">正在导入表情...</span>
+        <span id="import-progress-percent">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div id="import-progress-fill" class="progress-bar-fill"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 全局拖拽文件入库提示遮罩 -->
+<div id="drop-overlay">
+  <svg viewBox="0 0 512 512"><path d="M320,367.79,256,431.79l-64-64"/><line x1="256" y1="416" x2="256" y2="272"/><path d="M380.93,207.74A112,112,0,0,0,163.68,172a110.4,110.4,0,0,0-5.83,28.81A104,104,0,0,0,48,304c0,57.34,46.66,104,104,104h32"/><path d="M328,408h36a88,88,0,0,0,88-88c0-41.84-29.39-76.71-68.84-85.22"/></svg>
+  <div style="font-weight:600; font-size:14px; color:#fff;">释放鼠标立即导入表情包</div>
+  <div style="font-size:11px; color:#8e94a5;">支持多选 PNG, GIF, JPG, WEBP</div>
+</div>
+
+<!-- 多选常驻状态栏 -->
+<div id="drag-selection-box"></div>
+<div id="selection-bar">
+  <span id="selection-count-text">已多选 0 个表情包</span>
+  <button class="btn-clear-selection" id="btn-cancel-selection">取消多选</button>
+</div>
+
+<div id="toast"></div>
+
+<!-- 大图预览模态 -->
+<div id="preview-modal" onclick="closePreview()">
+  <img id="preview-img" src="" alt="大图预览">
+  <div id="preview-title"></div>
+  <div style="font-size:11px; color:#8e94a5; margin-top:4px;">点击任意处关闭</div>
+</div>
+
+<!-- 右键上下文菜单 -->
+<div id="context-menu">
+  <div class="menu-item" id="ctx-preview">
+    <svg viewBox="0 0 512 512"><path d="M255.66,112c-77.94,0-157.89,45.11-220.83,135.33a16,16,0,0,0-.27,17.77C82.92,340.8,161.8,400,255.66,400c92.84,0,173.34-59.38,221.79-135.25a16.14,16.14,0,0,0,0-17.47C428.89,172.26,348,112,255.66,112Z"/><circle cx="256" cy="256" r="80"/></svg>
+    <span>查看大图</span>
+  </div>
+  <div class="menu-item" id="ctx-copy">
+    <svg viewBox="0 0 512 512"><rect x="128" y="128" width="336" height="336" rx="57" ry="57"/><path d="M383.5,128l.5-24a56.16,56.16,0,0,0-56-56H112a64.19,64.19,0,0,0-64,64V328a56.16,56.16,0,0,0,56,56h24"/></svg>
+    <span>复制</span>
+  </div>
+  <div class="menu-item" id="ctx-rename">
+    <svg viewBox="0 0 512 512"><polygon points="358.62 129.28 86.49 402.08 70 442 109.92 425.51 382.72 153.38 358.62 129.28"/><path d="M413.83,99.08l17.79-17.79a28.28,28.28,0,0,0,0-40L407.48,17.15a28.28,28.28,0,0,0-40,0L349.7,34.94Z"/></svg>
+    <span>重命名</span>
+  </div>
+  <div class="menu-item danger" id="ctx-delete">
+    <svg viewBox="0 0 512 512"><path d="M112,112l20,320c.95,18.49,14.4,32,32,32H348c17.67,0,30.87-13.51,32-32l20-320"/><line x1="80" y1="112" x2="432" y2="112"/><path d="M192,112V72h128v40"/></svg>
+    <span>删除</span>
+  </div>
+</div>
+
+<!-- 重命名模态窗口 -->
+<div id="rename-modal" style="display:none; position:fixed; inset:0; background:rgba(10,12,16,0.85); z-index:210; backdrop-filter:blur(3px); align-items:center; justify-content:center;">
+  <div style="background:#1c1e27; border:1px solid #323646; border-radius:10px; width:320px; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:12px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2b2f3d; padding-bottom:8px;">
+      <div style="display:flex; align-items:center; gap:6px;">
+        <svg style="width:14px; height:14px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><polygon points="358.62 129.28 86.49 402.08 70 442 109.92 425.51 382.72 153.38 358.62 129.28"/><path d="M413.83,99.08l17.79-17.79a28.28,28.28,0,0,0,0-40L407.48,17.15a28.28,28.28,0,0,0-40,0L349.7,34.94Z"/></svg>
+        <span style="font-weight:600; font-size:13px; color:#fff;">重命名表情包</span>
+      </div>
+      <button id="btn-close-rename" class="btn-icon" title="关闭">
+        <svg viewBox="0 0 512 512"><line x1="368" y1="368" x2="144" y2="144"/><line x1="368" y1="144" x2="144" y2="368"/></svg>
+      </button>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <label style="font-size:11px; color:#8e94a5;">表情名称</label>
+      <input id="rename-input" placeholder="输入新的表情包名称" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:7px 10px; font-size:12px; outline:none;">
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+      <button id="btn-cancel-rename" style="background:#2b2f3d; border:none; color:#cbd5e1; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px;">取消</button>
+      <button id="btn-confirm-rename" style="background:#4f80ff; border:none; color:#fff; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 设置模态窗口 -->
+<div id="settings-modal" style="display:none; position:fixed; inset:0; background:rgba(10,12,16,0.85); z-index:100; backdrop-filter:blur(3px); align-items:center; justify-content:center;">
+  <div style="background:#1c1e27; border:1px solid #323646; border-radius:10px; width:360px; max-height:88vh; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,0.6); display:flex; flex-direction:column; gap:14px; overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #2b2f3d; padding-bottom:8px;">
+      <div style="display:flex; align-items:center; gap:6px;">
+        <svg style="width:16px; height:16px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><path d="M262.29,192.31a64,64,0,1,0,57.4,57.4A64.13,64.13,0,0,0,262.29,192.31ZM256,288a32,32,0,1,1,32-32A32,32,0,0,1,256,288Z"/><path d="M416.39,222.75l-42.67-6.93a144.38,144.38,0,0,0-12-28.82l23.51-36.21a16,16,0,0,0-2.31-20.73L354.34,101.5a16,16,0,0,0-20.73-2.31l-36.21,23.51a144.38,144.38,0,0,0-28.82-12L261.65,68a16,16,0,0,0-15.82-13.43H210.17A16,16,0,0,0,194.35,68l-6.93,42.67a144.38,144.38,0,0,0-28.82,12L122.39,99.19a16,16,0,0,0-20.73,2.31L73.1,130.06a16,16,0,0,0-2.31,20.73l23.51,36.21a144.38,144.38,0,0,0-12,28.82l-42.67,6.93A16,16,0,0,0,26.2,238.57v34.86a16,16,0,0,0,13.43,15.82l42.67,6.93a144.38,144.38,0,0,0,12,28.82L70.79,361.21a16,16,0,0,0,2.31,20.73l28.56,28.56a16,16,0,0,0,20.73,2.31l36.21-23.51a144.38,144.38,0,0,0,28.82,12l6.93,42.67a16,16,0,0,0,15.82,13.43h35.66a16,16,0,0,0,15.82-13.43l6.93-42.67a144.38,144.38,0,0,0,28.82-12l36.21,23.51a16,16,0,0,0,20.73-2.31l28.56-28.56a16,16,0,0,0,2.31-20.73l-23.51-36.21a144.38,144.38,0,0,0,12-28.82l42.67-6.93a16,16,0,0,0,13.43-15.82V238.57A16,16,0,0,0,416.39,222.75Z"/></svg>
+        <span style="font-weight:600; font-size:14px; color:#fff;">系统偏好设置</span>
+      </div>
+      <button id="btn-close-settings" class="btn-icon" title="关闭">
+        <svg viewBox="0 0 512 512"><line x1="368" y1="368" x2="144" y2="144"/><line x1="368" y1="144" x2="144" y2="368"/></svg>
+      </button>
+    </div>
+
+    <!-- 客户端基础配置 -->
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#cbd5e1;">
+        <svg style="width:14px; height:14px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><rect x="32" y="64" width="448" height="288" rx="32" ry="32"/><line x1="32" y1="288" x2="480" y2="288"/><path d="M192,352l-32,96h192l-32-96"/></svg>
+        <span>客户端设置</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; color:#8e94a5;">服务端地址 (Server URL)</label>
+        <input id="cfg-server-url" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; color:#8e94a5;">访问令牌 (Auth Token)</label>
+        <input id="cfg-token" type="password" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label style="font-size:11px; color:#8e94a5;">全局呼出快捷键 (Hotkey)</label>
+        <input id="cfg-hotkey" placeholder="例如 Ctrl+Alt+E" style="background:#232734; border:1px solid #323646; color:#fff; border-radius:6px; padding:6px 8px; font-size:12px; outline:none;">
+      </div>
+    </div>
+
+    <!-- 服务端存储方式设置 -->
+    <div style="border-top:1px solid #2b2f3d; padding-top:10px; display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#cbd5e1;">
+          <svg style="width:14px; height:14px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><path d="M400,240c-8.84,0-16,7.16-16,16a80,80,0,1,1-160,0c0-4.42,1.79-8.42,4.69-11.31C231.59,241.79,232,237.38,232,232a88,88,0,0,0-176,0c0,4.42,1.79,8.42,4.69,11.31C63.59,246.21,64,250.62,64,256a112,112,0,0,0,224,0"/><path d="M380.93,207.74A112,112,0,0,0,163.68,172a110.4,110.4,0,0,0-5.83,28.81A104,104,0,0,0,48,304c0,57.34,46.66,104,104,104H400a96,96,0,0,0,0-192Z"/></svg>
+          <span>服务端存储方式</span>
+        </div>
+        <span id="storage-status-tag" style="font-size:10px; padding:2px 6px; border-radius:10px; background:#21242e; color:#4f80ff;">加载中...</span>
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <label style="font-size:12px; color:#e2e8f0; display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="radio" name="storage-mode" value="local" checked id="radio-storage-local"> 本地存储 (Local)
+        </label>
+        <label style="font-size:12px; color:#e2e8f0; display:flex; align-items:center; gap:4px; cursor:pointer;">
+          <input type="radio" name="storage-mode" value="s3" id="radio-storage-s3"> S3 / Cloudflare R2
+        </label>
+      </div>
+
+      <!-- 选项1: 本地存储路径 -->
+      <div id="storage-local-pane" style="display:flex; flex-direction:column; gap:4px; background:#232734; border:1px solid #323646; border-radius:6px; padding:8px;">
+        <label style="font-size:11px; color:#8e94a5;">服务端存储根目录 (Data Dir)</label>
+        <input id="storage-local-dir" placeholder="例如 data" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+      </div>
+
+      <!-- 选项2: S3 / Cloudflare R2 配置项 -->
+      <div id="storage-s3-pane" style="display:none; flex-direction:column; gap:6px; background:#232734; border:1px solid #323646; border-radius:6px; padding:8px;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">Endpoint (服务端接入地址)</label>
+          <input id="s3-endpoint" placeholder="例如 https://<id>.r2.cloudflarestorage.com" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+        <div style="display:flex; gap:6px;">
+          <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:#8e94a5;">Bucket (存储桶名)</label>
+            <input id="s3-bucket" placeholder="例如 mojinest-stickers" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+          </div>
+          <div style="width:70px; display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:#8e94a5;">Region</label>
+            <input id="s3-region" value="auto" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">Access Key ID</label>
+          <input id="s3-access-key" type="password" placeholder="R2 Access Key" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">Secret Access Key</label>
+          <input id="s3-secret-key" type="password" placeholder="R2 Secret Key" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">Public Base URL (可选公共CDN域名)</label>
+          <input id="s3-public-base" placeholder="例如 https://pub-xxx.r2.dev" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 自动标注与视觉分类配置 -->
+    <div style="border-top:1px solid #2b2f3d; padding-top:10px; display:flex; flex-direction:column; gap:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#cbd5e1;">
+          <svg style="width:14px; height:14px; stroke:var(--acc); fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:36px;" viewBox="0 0 512 512"><path d="M256,48C141.31,48,48,141.31,48,256s93.31,208,208,208,208-93.31,208-208S370.69,48,256,48Z"/><path d="M256,128v256"/><path d="M384,256H128"/></svg>
+          <span>AI 自动分类 / 视觉标注</span>
+        </div>
+        <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#cbd5e1; cursor:pointer;">
+          <input type="checkbox" id="ai-enabled" style="cursor:pointer;">
+          <span>启用后台打标</span>
+        </label>
+      </div>
+
+      <div id="ai-config-pane" style="display:flex; flex-direction:column; gap:6px; background:#232734; border:1px solid #323646; border-radius:6px; padding:8px;">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">API Base URL</label>
+          <input id="ai-base-url" placeholder="http://127.0.0.1:7861/antigravity/v1" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">API Key</label>
+          <input id="ai-api-key" type="password" placeholder="API 密钥" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+        <div style="display:flex; gap:6px;">
+          <div style="flex:1; display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:#8e94a5;">模型名称 (Model)</label>
+            <input id="ai-model" placeholder="gemini-3.8-flash-medium" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+          </div>
+          <div style="width:70px; display:flex; flex-direction:column; gap:2px;">
+            <label style="font-size:11px; color:#8e94a5;">并发数</label>
+            <input id="ai-concurrency" type="number" min="1" max="10" value="3" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <label style="font-size:11px; color:#8e94a5;">规定分类大类（用逗号或斜杠隔开）</label>
+          <input id="ai-categories" placeholder="沙雕搞笑, 可爱萌系, 阴阳吐槽, 无语尴尬, 开心点赞, 悲伤emo, 愤怒暴躁, 问号疑惑" style="background:#1a1c24; border:1px solid #323646; color:#fff; border-radius:4px; padding:5px 8px; font-size:11px; outline:none;">
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+          <button id="btn-test-ai" type="button" style="background:#2b3042; border:1px solid #3d435a; color:#cbd5e1; padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer;">测试模型连接</button>
+          <button id="btn-batch-tag" type="button" style="background:#2b3042; border:1px solid #3d435a; color:#4f80ff; padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer;">清空并按大类重打</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:4px;">
+      <button id="btn-cancel-settings" style="background:#2b2f3d; border:none; color:#cbd5e1; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px;">取消</button>
+      <button id="btn-save-settings" style="background:#4f80ff; border:none; color:#fff; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">保存所有配置</button>
+    </div>
+  </div>
+</div>
+
+<!-- 隐藏的文件选择 input -->
+<input type="file" id="web-file-input" accept="image/png,image/jpeg,image/gif,image/webp" multiple style="display:none;">
 
 <script>
-const $ = (s) => document.querySelector(s);
-let state = { q:'', tags:[], sort:'newest', favorite:false, trash:false, limit:120, offset:0, total:0 };
-let allTags = [], toastTimer = null;
+    const isTauri = typeof window.__TAURI__ !== 'undefined';
+  const invoke = isTauri && window.__TAURI__.core ? window.__TAURI__.core.invoke : async (cmd, args) => {
+    if (cmd === 'get_desktop_config') {
+      const saved = localStorage.getItem('mojinest_desktop_cfg');
+      if (saved) return JSON.parse(saved);
+      return { server_url: window.location.origin, token: localStorage.getItem('mojinest_token') || '', hotkey: 'Ctrl+Alt+E' };
+    }
+    if (cmd === 'save_desktop_config') {
+      localStorage.setItem('mojinest_desktop_cfg', JSON.stringify(args.cfg));
+      return;
+    }
+    if (cmd === 'hide_window' || cmd === 'start_drag') {
+      return;
+    }
+    if (cmd === 'copy_item_to_clipboard') {
+      try {
+        const resp = await fetch(args.fileUrl);
+        const blob = await resp.blob();
 
-function toast(msg) {
-  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
-}
+        // 尝试现代异步 Clipboard API (write [ClipboardItem])
+        if (navigator.clipboard && window.ClipboardItem) {
+          // 如果是 PNG 或浏览器支持的直接写入格式
+          const mime = blob.type || (args.ext === 'png' ? 'image/png' : 'image/jpeg');
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ [mime]: blob })
+            ]);
+            return true;
+          } catch (writeErr) {
+            console.warn("直接写入原始图片 Blob 失败，转为 Canvas PNG 写入:", writeErr);
+          }
 
-async function api(path, opts = {}) {
-  const r = await fetch('/api' + path, { credentials:'same-origin', ...opts });
-  if (r.status === 401) { showLogin(); throw new Error('unauthorized'); }
-  if (!r.ok) { const t = await r.text(); throw new Error(t || r.statusText); }
-  const ct = r.headers.get('content-type') || '';
-  return ct.includes('application/json') ? r.json() : r.blob();
-}
+          // 回退转码为纯 PNG 写入剪贴板（兼容绝大多数浏览器与聊天软件）
+          try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = args.fileUrl;
+            await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || 300;
+            canvas.height = img.naturalHeight || 300;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const pngBlob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+            if (pngBlob) {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': pngBlob })
+              ]);
+              return true;
+            }
+          } catch (canvasErr) {
+            console.warn("Canvas 转 PNG 写入剪贴板失败:", canvasErr);
+          }
+        }
 
-function showLogin() { $('#login').classList.remove('hidden'); $('#app').classList.add('hidden'); }
-function showApp() { $('#login').classList.add('hidden'); $('#app').classList.remove('hidden'); }
+        // 若浏览器未授权写入图片二进制（如非 HTTPS 或受限环境），降级为复制直链或文本
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(args.fileUrl);
+          showToast("浏览器权限受限，已复制图片链接");
+          return true;
+        }
 
-async function login() {
-  const token = $('#token').value.trim();
-  try {
-    const r = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token }) });
-    if (!r.ok) { $('#loginmsg').textContent = 'Token 不正确'; return; }
-    localStorage.setItem('mojinest_token', token);
-    showApp(); await boot();
-  } catch (e) { $('#loginmsg').textContent = String(e.message || e); }
-}
+        throw new Error("当前浏览器环境不支持写入剪贴板");
+      } catch (err) {
+        console.error("copy_item_to_clipboard 出错:", err);
+        throw err;
+      }
+    }
+    if (cmd === 'get_detected_platforms') {
+      return [];
+    }
+    if (cmd === 'pick_and_import_local_files') {
+      return { total: 0, imported: 0, skipped: 0, failed: 0 };
+    }
+    return null;
+  };
 
-let loadTimer = null;
-function debouncedLoad() { clearTimeout(loadTimer); loadTimer = setTimeout(() => { state.offset = 0; load(); }, 220); }
+  let serverConfig = { server_url: window.location.origin, token: localStorage.getItem("mojinest_token") || "" };
+  let currentTag = "";
+  let searchTimer = null;
+  let selectedItemIds = new Set();
+  let selectedItemsMap = new Map();
+  let currentItems = [];
+  let currentTotal = 0;
+  let currentOffset = 0;
+  const PAGE_SIZE = 40;
+  let isLoadingMore = false;
+  let hasMoreItems = true;
 
-async function boot() {
-  // Desktop client passes ?token= / #token= so the UI can bootstrap a session.
-  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
-  const boot = hash.get('token') || new URLSearchParams(location.search).get('token');
-  if (boot) {
-    localStorage.setItem('mojinest_token', boot);
-    history.replaceState(null, '', location.pathname);
+  function updateSelectionBar() {
+    const bar = document.getElementById("selection-bar");
+    const count = selectedItemIds.size;
+    if (count > 0) {
+      document.getElementById("selection-count-text").textContent = `已多选 ${count} 个表情包`;
+      bar.classList.add("active");
+    } else {
+      bar.classList.remove("active");
+    }
+  }
+
+  function toggleSelection(it, card) {
+    const id = String(it.id);
+    if (selectedItemIds.has(id)) {
+      selectedItemIds.delete(id);
+      selectedItemsMap.delete(id);
+      card.classList.remove("selected");
+    } else {
+      selectedItemIds.add(id);
+      selectedItemsMap.set(id, { ...it, element: card });
+      card.classList.add("selected");
+    }
+    updateSelectionBar();
+  }
+
+  function clearSelection() {
+    selectedItemIds.clear();
+    selectedItemsMap.clear();
+    document.querySelectorAll(".item-card.selected").forEach(c => c.classList.remove("selected"));
+    updateSelectionBar();
+  }
+
+  document.getElementById("btn-cancel-selection").onclick = (e) => {
+    e.stopPropagation();
+    clearSelection();
+  };
+
+  function showToast(msg, undoCallback = null, duration = 1500) {
+    const t = document.getElementById("toast");
+    t.innerHTML = "";
+    const txt = document.createElement("span");
+    txt.textContent = msg;
+    t.appendChild(txt);
+
+    if (undoCallback) {
+      const undoBtn = document.createElement("button");
+      undoBtn.className = "btn-undo";
+      undoBtn.textContent = "撤回 (5s)";
+      let left = 5;
+      const countInterval = setInterval(() => {
+        left--;
+        if (left > 0) undoBtn.textContent = `撤回 (${left}s)`;
+      }, 1000);
+
+      undoBtn.onclick = () => {
+        clearInterval(countInterval);
+        t.classList.remove("show");
+        undoCallback();
+      };
+      t.appendChild(undoBtn);
+      duration = 5000;
+    }
+
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => {
+      t.classList.remove("show");
+    }, duration);
+  }
+
+  function closeContextMenu() {
+    const m = document.getElementById("context-menu");
+    m.style.display = "none";
+    activeContextItem = null;
+  }
+
+  function closePreview() {
+    document.getElementById("preview-modal").style.display = "none";
+  }
+
+  async function loadConfig() {
     try {
-      await fetch('/api/auth/login', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ token: boot }),
+      const cfg = await invoke("get_desktop_config");
+      if (cfg && cfg.server_url) {
+        serverConfig = cfg;
+      }
+    } catch (e) {
+      console.warn("加载配置失败，使用默认配置", e);
+    }
+
+    // Web 端自动从 URL query/hash 或 localStorage 提取 token
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const hashSp = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const qToken = sp.get("token") || hashSp.get("token");
+      if (qToken) {
+        serverConfig.token = qToken;
+        try { localStorage.setItem("mojinest_token", qToken); } catch (_) {}
+      } else {
+        try {
+          const savedToken = localStorage.getItem("mojinest_token");
+          if (savedToken) serverConfig.token = savedToken;
+        } catch (_) {}
+      }
+    }
+  }
+
+  async function apiFetch(path, options = {}) {
+    const base = serverConfig.server_url.replace(/\/+$/, "");
+    const headers = options.headers ? { ...options.headers } : {};
+    if (serverConfig.token) {
+      headers["Authorization"] = "Bearer " + serverConfig.token;
+    } else {
+      const savedToken = localStorage.getItem("mojinest_token");
+      if (savedToken) {
+        headers["Authorization"] = "Bearer " + savedToken;
+        serverConfig.token = savedToken;
+      }
+    }
+    if (options.body && typeof options.body === "string" && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
+    const res = await fetch(base + path, { ...options, headers });
+    if (!res.ok) {
+      let errText = "";
+      try {
+        const errJson = await res.json();
+        errText = errJson.error || errJson.message || "";
+      } catch (_) {
+        errText = await res.text();
+      }
+      throw new Error(errText || "HTTP " + res.status);
+    }
+    return res.json();
+  }
+
+  async function loadTags() {
+    try {
+      const tags = await apiFetch("/api/tags");
+      const bar = document.getElementById("tag-bar");
+      bar.innerHTML = '<div class="tag-pill' + (!currentTag ? " active" : "") + '" data-tag="">全部</div>';
+      (tags || []).forEach(t => {
+        const pill = document.createElement("div");
+        pill.className = "tag-pill" + (currentTag === t.name ? " active" : "");
+        pill.dataset.tag = t.name;
+        pill.textContent = `${t.name} (${t.count})`;
+        bar.appendChild(pill);
       });
-    } catch (e) { /* fall through to the normal auth check */ }
-  }
-  try { await api('/auth/me'); showApp(); } catch { showLogin(); return; }
-  await load(); await loadTags(); await loadStats();
-}
-
-async function load() {
-  $('#status').textContent = '加载中…';
-  const my = ++loadSeq;
-  const p = new URLSearchParams();
-  state.q = $('#q').value.trim(); state.sort = $('#sort').value;
-  if (state.q) p.set('q', state.q);
-  if (state.tags.length) p.set('tags', state.tags.join(','));
-  if (state.favorite) p.set('favorite', '1');
-  if (state.trash) p.set('trash', '1');
-  p.set('sort', state.sort); p.set('limit', state.limit); p.set('offset', state.offset);
-  let data;
-  try {
-    data = await api('/items?' + p.toString());
-  } catch (e) {
-    if (my === loadSeq) { $('#status').textContent = '加载失败：' + (e.message || e); }
-    return;
-  }
-  if (my !== loadSeq) return; // a newer query is in flight; drop this response
-  const items = data.items || [];
-  state.total = data.total;
-  render(items);
-  $('#count').textContent = `${data.total} 张`;
-  $('#status').textContent = '';
-  const filtering = !!state.q || state.tags.length > 0 || state.favorite || state.trash;
-  $('#empty').textContent = filtering
-    ? '没有匹配的表情'
-    : '这里还空着 —— 点右上「上传」把你的表情搬进来';
-  $('#empty').classList.toggle('hidden', items.length > 0);
-}
-
-let loadSeq = 0;
-
-function render(items) {
-  const grid = $('#grid'); grid.innerHTML = '';
-  for (const it of items) {
-    const el = document.createElement('div'); el.className = 'card'; el.title = title(it);
-    const img = document.createElement('img'); img.loading = 'lazy';
-    img.src = `/api/thumbs/${it.sha256}`;
-    el.appendChild(img);
-    if (it.animated) { const b = document.createElement('div'); b.className = 'badge'; b.textContent = '动图'; el.appendChild(b); }
-    const label = it.name || (it.tags[0] || {}).name || it.ai_description || '';
-    if (label) { const l = document.createElement('div'); l.className = 'tagline'; l.textContent = label; el.appendChild(l); }
-    el.onclick = () => copyItem(it, el);
-    grid.appendChild(el);
-  }
-}
-
-function title(it) {
-  const tags = (it.tags || []).map(t => t.name).join(' ');
-  return [it.name, tags, it.note, it.ai_description].filter(Boolean).join(' | ');
-}
-
-async function copyItem(it, el) {
-  try {
-    const blob = await api(`/files/${it.sha256}?ext=${it.ext}`);
-    let out = blob;
-    if (!['image/png','image/gif'].includes(it.mime)) {
-      out = await toPNG(blob);
+      if (currentTag) {
+        bar.querySelector('.tag-pill[data-tag=""]')?.classList.remove("active");
+      }
+    } catch (e) {
+      console.warn("加载标签失败:", e);
     }
-    if (!window.isSecureContext || !navigator.clipboard || !window.ClipboardItem) {
-      throw new Error('浏览器不允许写剪贴板（非 HTTPS 环境）');
-    }
-    await navigator.clipboard.write([new ClipboardItem({ [out.type]: out })]);
-    toast('已复制到剪贴板，直接 Ctrl+V 粘贴');
-    api(`/items/${it.id}/use`, { method:'POST' }).catch(() => {});
-  } catch (e) {
-    // Fall back to saving the file so non-secure clients (LAN http) still work.
-    toast('复制不可用，已改为下载：' + (e.message || e));
-    const a = document.createElement('a');
-    a.href = `/api/files/${it.sha256}?ext=${it.ext}&token=${encodeURIComponent(tokenOf())}`;
-    a.download = (it.name || it.sha256) + '.' + it.ext;
-    a.click();
-    api(`/items/${it.id}/use`, { method:'POST' }).catch(() => {});
   }
-}
 
-function tokenOf() { return localStorage.getItem('mojinest_token') || ''; }
+  async function loadItems(reset = true) {
+    if (reset) {
+      currentOffset = 0;
+      currentItems = [];
+      hasMoreItems = true;
+    }
+    if (isLoadingMore || !hasMoreItems) return;
+    isLoadingMore = true;
 
-async function toPNG(blob) {
-  const bmp = await createImageBitmap(blob);
-  const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
-  c.getContext('2d').drawImage(bmp, 0, 0);
-  return await new Promise(res => c.toBlob(res, 'image/png'));
-}
+    const q = document.getElementById("search").value.trim();
+    const status = document.getElementById("status-info");
+    status.textContent = reset ? "加载中..." : "加载更多...";
+    try {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (currentTag) params.set("tags", currentTag);
+      params.set("limit", PAGE_SIZE.toString());
+      params.set("offset", currentOffset.toString());
+      params.set("sort", "used");
 
-function pickFile() { $('#file').click(); }
+      const data = await apiFetch("/api/items?" + params.toString());
+      const newItems = data.items || [];
+      currentTotal = data.total || 0;
+      currentOffset += newItems.length;
 
-async function upload(files) {
-  if (!files || !files.length) return;
-  const fd = new FormData();
-  for (const f of files) fd.append('file', f, f.name);
-  const tags = state.tags.join(',');
-  if (tags) fd.append('tags', tags);
-  $('#status').textContent = `上传中… (${files.length})`;
-  try {
-    const r = await api('/items', { method:'POST', body: fd });
-    toast(`已导入 ${r.items.length} 张${r.skipped ? `，跳过 ${r.skipped} 张（重复或格式不支持）` : ''}`);
-    await load(); await loadTags(); await loadStats();
-  } catch (e) { toast('上传失败：' + (e.message || e)); }
-  $('#status').textContent = '';
-  $('#file').value = '';
-}
+      if (reset) {
+        currentItems = newItems;
+        renderGrid(currentItems);
+      } else {
+        currentItems = currentItems.concat(newItems);
+        appendGrid(newItems);
+      }
 
-async function loadTags() {
-  allTags = await api('/tags');
-  const box = $('#tags'); box.innerHTML = '';
-  for (const t of allTags) {
-    const b = document.createElement('button');
-    b.textContent = `${t.name} ${t.count}`;
-    if (state.tags.includes(t.name)) b.classList.add('on');
-    b.onclick = () => {
-      const i = state.tags.indexOf(t.name);
-      if (i >= 0) state.tags.splice(i, 1); else state.tags.push(t.name);
-      state.offset = 0; loadTags(); load();
+      hasMoreItems = currentOffset < currentTotal;
+      document.getElementById("count-info").textContent = `${currentItems.length} / ${currentTotal} 张`;
+      status.textContent = "已就绪";
+      checkFillViewport();
+    } catch (e) {
+      status.textContent = "加载失败";
+      showToast("连接服务端失败: " + e.message);
+    } finally {
+      isLoadingMore = false;
+    }
+  }
+
+  function createCard(it) {
+    const card = document.createElement("div");
+    card.dataset.id = String(it.id);
+    card.setAttribute("data-id", String(it.id));
+    card.className = "item-card" + (selectedItemIds.has(String(it.id)) ? " selected" : "");
+    card.title = [it.name, (it.tags||[]).map(t=>t.name).join(','), it.ai_description].filter(Boolean).join(" | ");
+
+    const base = serverConfig.server_url.replace(/\/+$/, "");
+    const thumbUrl = `${base}/api/thumbs/${it.sha256}?token=${encodeURIComponent(serverConfig.token)}`;
+    const fileUrl = `${base}/api/files/${it.sha256}?ext=${it.ext}&token=${encodeURIComponent(serverConfig.token)}`;
+
+    card.innerHTML = `
+      <img src="${thumbUrl}" data-thumb="${thumbUrl}" data-full="${fileUrl}" loading="lazy" alt="${it.name}">
+      ${it.animated ? '<span class="anim-badge">GIF</span>' : ''}
+      <span class="card-label">${it.name || it.ai_description || '表情'}</span>
+      <div class="copy-hover-bar" title="单击复制到聊天框">
+        <svg style="width:12px; height:12px; stroke:currentColor; fill:none; stroke-width:36px;" viewBox="0 0 512 512"><rect x="128" y="128" width="336" height="336" rx="57" ry="57"/><path d="M383.5,128l.5-24a56.16,56.16,0,0,0-56-56H112a64.19,64.19,0,0,0-64,64V328a56.16,56.16,0,0,0,56,56h24"/></svg>
+        <span>复制</span>
+      </div>
+    `;
+
+    // 绑定下 1/3 部分专属复制按钮
+    const copyBtn = card.querySelector(".copy-hover-bar");
+    copyBtn.onclick = async (e) => {
+      e.stopPropagation();
+      try {
+        showToast("已选择，正在写入剪贴板...");
+        await invoke("copy_item_to_clipboard", {
+          fileUrl: fileUrl,
+          ext: it.ext || "gif",
+          mimeType: it.mime || "image/gif",
+          scaleForChat: true
+        });
+        apiFetch(`/api/items/${it.id}/use`, { method: "POST" }).catch(() => {});
+        await invoke("hide_window");
+      } catch (err) {
+        showToast("复制失败: " + err);
+      }
     };
-    box.appendChild(b);
+
+    // GIF 图光标悬停时播放动图，移出时恢复首帧缩略图
+    if (it.animated) {
+      card.onmouseenter = () => {
+        const img = card.querySelector("img");
+        if (img && img.dataset.full) {
+          img.src = img.dataset.full;
+        }
+      };
+      card.onmouseleave = () => {
+        const img = card.querySelector("img");
+        if (img && img.dataset.thumb) {
+          img.src = img.dataset.thumb;
+        }
+      };
+    }
+
+    // 点击其余主体部分：切换选中/多选状态
+    card.onclick = () => {
+      toggleSelection(it, card);
+    };
+
+    // 右键上下文菜单事件
+    card.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // 如果当前发生过拖拽框选，阻止右键弹出菜单
+      if (isDragSelecting || hasDraggedSelection) {
+        return;
+      }
+
+      const id = String(it.id);
+      if (!selectedItemIds.has(id)) {
+        clearSelection();
+        toggleSelection(it, card);
+      }
+      activeContextItem = { ...it, fileUrl, thumbUrl, element: card };
+
+      const menu = document.getElementById("context-menu");
+      menu.style.display = "flex";
+
+      const count = selectedItemIds.size;
+      const previewItem = document.getElementById("ctx-preview");
+      const copyItem = document.getElementById("ctx-copy");
+      const renameItem = document.getElementById("ctx-rename");
+      const delBtn = document.getElementById("ctx-delete");
+
+      if (count > 1) {
+        previewItem.style.display = "none";
+        copyItem.style.display = "none";
+        renameItem.style.display = "none";
+        delBtn.querySelector("span").textContent = `删除 (${count} 个)`;
+      } else {
+        previewItem.style.display = "flex";
+        copyItem.style.display = "flex";
+        renameItem.style.display = "flex";
+        delBtn.querySelector("span").textContent = "删除";
+      }
+
+      let x = e.clientX;
+      let y = e.clientY;
+      const menuWidth = 140;
+      const menuHeight = 150;
+      if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8;
+      if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8;
+
+      menu.style.left = `${x}px`;
+      menu.style.top = `${y}px`;
+    };
+
+    return card;
   }
-}
 
-async function loadStats() {
-  const s = await api('/stats');
-  const mb = (s.bytes / 1048576).toFixed(1);
-  $('#store').textContent = `${s.animated} 张动图 · ${s.tags} 个标签 · ${mb} MB`;
-  const jobs = await api('/jobs');
-  const pending = (jobs.pending || 0) + (jobs.running || 0), failed = jobs.failed || 0;
-  $('#jobs').textContent = jobs.tagger_enabled
-    ? `AI 标注：队列 ${pending}${failed ? ` / 失败 ${failed}` : ''}`
-    : 'AI 标注：未配置模型';
-  if (failed && jobs.tagger_enabled) {
-    const b = document.createElement('button');
-    b.textContent = '重试失败的标注';
-    b.style.marginLeft = '8px';
-    b.onclick = async () => { await api('/jobs/retry', { method:'POST' }); toast('已重新排队'); loadStats(); };
-    $('#jobs').appendChild(b);
+  function renderGrid(items) {
+    const grid = document.getElementById("grid");
+    const empty = document.getElementById("empty");
+    grid.innerHTML = "";
+
+    if (!items.length) {
+      empty.style.display = "block";
+      return;
+    }
+    empty.style.display = "none";
+
+    items.forEach(it => {
+      grid.appendChild(createCard(it));
+    });
   }
-}
 
-function toggleFav() { state.favorite = !state.favorite; $('#fav').style.borderColor = state.favorite ? 'var(--acc)' : ''; state.offset = 0; load(); }
-function toggleTrash() { state.trash = !state.trash; $('#trash').style.borderColor = state.trash ? 'var(--acc)' : ''; state.offset = 0; load(); }
+  function appendGrid(items) {
+    const grid = document.getElementById("grid");
+    items.forEach(it => {
+      grid.appendChild(createCard(it));
+    });
+  }
 
-boot();
+  // 全局点击自动关闭右键菜单
+  window.addEventListener("click", () => {
+    closeContextMenu();
+  });
+
+  // --- 右键拖拽框选逻辑 ---
+  let isRightMouseDown = false;
+  let isDragSelecting = false;
+  let hasDraggedSelection = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let initialSelectedIds = new Set();
+  const DRAG_THRESHOLD = 5; // 超过5像素判定为拖拽而非点击
+
+  const selectionBox = document.getElementById("drag-selection-box");
+
+  window.addEventListener("mousedown", (e) => {
+    if (e.button === 2) { // 鼠标右键
+      if (e.target.closest("#context-menu") || e.target.closest(".modal")) return;
+
+      isRightMouseDown = true;
+      hasDraggedSelection = false;
+      isDragSelecting = false;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      closeContextMenu();
+
+      if (e.ctrlKey || e.shiftKey) {
+        initialSelectedIds = new Set(selectedItemIds);
+      } else {
+        initialSelectedIds = new Set();
+      }
+    }
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!isRightMouseDown) return;
+
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+
+    if (!isDragSelecting) {
+      if (Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
+        isDragSelecting = true;
+        hasDraggedSelection = true;
+        selectionBox.style.display = "block";
+      }
+    }
+
+    if (isDragSelecting) {
+      const left = Math.min(dragStartX, e.clientX);
+      const top = Math.min(dragStartY, e.clientY);
+      const width = Math.abs(dx);
+      const height = Math.abs(dy);
+
+      selectionBox.style.left = `${left}px`;
+      selectionBox.style.top = `${top}px`;
+      selectionBox.style.width = `${width}px`;
+      selectionBox.style.height = `${height}px`;
+
+      const boxRect = { left, top, right: left + width, bottom: top + height };
+
+      // 实时计算相交表情包卡片
+      const cards = document.querySelectorAll(".item-card");
+      cards.forEach(card => {
+        const itemId = card.dataset.id;
+        if (!itemId) return;
+        const rect = card.getBoundingClientRect();
+        const isIntersecting = !(
+          rect.right < boxRect.left ||
+          rect.left > boxRect.right ||
+          rect.bottom < boxRect.top ||
+          rect.top > boxRect.bottom
+        );
+
+        const it = currentItems.find(x => String(x.id) === String(itemId));
+        if (!it) return;
+
+        if (isIntersecting) {
+          if (!selectedItemIds.has(String(itemId))) {
+            selectedItemIds.add(String(itemId));
+            selectedItemsMap.set(String(itemId), { ...it, element: card });
+            card.classList.add("selected");
+          }
+        } else {
+          if (!initialSelectedIds.has(String(itemId)) && selectedItemIds.has(String(itemId))) {
+            selectedItemIds.delete(String(itemId));
+            selectedItemsMap.delete(String(itemId));
+            card.classList.remove("selected");
+          }
+        }
+      });
+      updateSelectionBar();
+    }
+  });
+
+  window.addEventListener("mouseup", (e) => {
+    if (e.button === 2) {
+      if (isDragSelecting) {
+        isDragSelecting = false;
+        selectionBox.style.display = "none";
+        setTimeout(() => {
+          hasDraggedSelection = false;
+        }, 80);
+      }
+      isRightMouseDown = false;
+    }
+  });
+
+  window.addEventListener("contextmenu", (e) => {
+    if (hasDraggedSelection) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+
+  // 1. 显示大图
+  document.getElementById("ctx-preview").onclick = () => {
+    if (!activeContextItem) return;
+    const it = activeContextItem;
+    closeContextMenu();
+    const modal = document.getElementById("preview-modal");
+    const img = document.getElementById("preview-img");
+    const title = document.getElementById("preview-title");
+    img.src = it.fileUrl;
+    title.textContent = it.name || it.ai_description || "表情大图";
+    modal.style.display = "flex";
+  };
+
+  // 2. 复制到剪贴板（右键：保持原图高清尺寸不变）
+  document.getElementById("ctx-copy").onclick = async () => {
+    if (!activeContextItem) return;
+    const it = activeContextItem;
+    closeContextMenu();
+    try {
+      showToast("正在复制原图到剪贴板...");
+      await invoke("copy_item_to_clipboard", {
+        fileUrl: it.fileUrl,
+        ext: it.ext || "gif",
+        mimeType: it.mime || "image/gif",
+        scaleForChat: false
+      });
+      apiFetch(`/api/items/${it.id}/use`, { method: "POST" }).catch(() => {});
+      await invoke("hide_window");
+    } catch (err) {
+      showToast("复制失败: " + err);
+    }
+  };
+
+  // 3. 重命名表情包（原生定制深色模态窗口）
+  document.getElementById("ctx-rename").onclick = () => {
+    if (!activeContextItem) return;
+    const it = activeContextItem;
+    closeContextMenu();
+    document.getElementById("rename-input").value = it.name || "";
+    const modal = document.getElementById("rename-modal");
+    modal.style.display = "flex";
+    setTimeout(() => {
+      const inp = document.getElementById("rename-input");
+      inp.focus();
+      inp.select();
+    }, 50);
+
+    const onConfirm = async () => {
+      const newName = document.getElementById("rename-input").value.trim();
+      if (!newName || newName === it.name) {
+        modal.style.display = "none";
+        return;
+      }
+      try {
+        const base = serverConfig.server_url.replace(/\/+$/, "");
+        const res = await fetch(`${base}/api/items/${it.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+          },
+          body: JSON.stringify({ name: newName })
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        modal.style.display = "none";
+        showToast("重命名成功！");
+        loadItems();
+      } catch (err) {
+        showToast("重命名失败: " + err);
+      }
+    };
+
+    document.getElementById("btn-confirm-rename").onclick = onConfirm;
+    document.getElementById("rename-input").onkeydown = (e) => {
+      if (e.key === "Enter") onConfirm();
+      if (e.key === "Escape") modal.style.display = "none";
+    };
+  };
+
+  document.getElementById("btn-close-rename").onclick = () => {
+    document.getElementById("rename-modal").style.display = "none";
+  };
+  document.getElementById("btn-cancel-rename").onclick = () => {
+    document.getElementById("rename-modal").style.display = "none";
+  };
+
+  // 4. 删除表情包（支持单选或多选批量删除，5秒内可撤回）
+  document.getElementById("ctx-delete").onclick = () => {
+    closeContextMenu();
+
+    // 收集所有待删除的项目
+    const itemsToDelete = [];
+    if (selectedItemIds.size > 0) {
+      selectedItemsMap.forEach(v => itemsToDelete.push(v));
+    } else if (activeContextItem) {
+      itemsToDelete.push(activeContextItem);
+    }
+    if (!itemsToDelete.length) return;
+
+    // 乐观 UI 隐藏被删的所有卡片
+    itemsToDelete.forEach(it => {
+      if (it.element) it.element.style.display = "none";
+    });
+
+    let isUndone = false;
+    const executeDelete = async () => {
+      if (isUndone) return;
+      const base = serverConfig.server_url.replace(/\/+$/, "");
+      for (const it of itemsToDelete) {
+        try {
+          await fetch(`${base}/api/items/${it.id}`, {
+            method: "DELETE",
+            headers: {
+              "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+            }
+          });
+        } catch (err) {
+          console.error("删除失败", err);
+        }
+      }
+      clearSelection();
+      loadItems();
+      loadTags();
+    };
+
+    // 立即清除当前选中状态，收起多选栏，避免遮挡撤回 Toast
+    clearSelection();
+
+    deleteUndoTimer = setTimeout(executeDelete, 5000);
+
+    const msg = itemsToDelete.length > 1 ? `已删除 ${itemsToDelete.length} 个表情` : "表情已删除";
+    showToast(msg, () => {
+      // 撤回逻辑
+      isUndone = true;
+      clearTimeout(deleteUndoTimer);
+      itemsToDelete.forEach(it => {
+        if (it.element) {
+          it.element.style.display = "flex";
+          // 撤回后恢复选中状态与多选栏
+          const id = String(it.id);
+          selectedItemIds.add(id);
+          selectedItemsMap.set(id, it);
+          it.element.classList.add("selected");
+        }
+      });
+      updateSelectionBar();
+      showToast("已撤回删除！");
+    });
+  };
+
+  // 滚动区域触底监听：自动无限加载下一页
+  const checkAndLoadMore = () => {
+    if (isLoadingMore || !hasMoreItems) return;
+    const mainEl = document.querySelector("main");
+    if (!mainEl) return;
+
+    const mainRemain = mainEl.scrollHeight - mainEl.scrollTop - mainEl.clientHeight;
+    const docRemain = document.documentElement.scrollHeight - (window.pageYOffset || document.documentElement.scrollTop) - window.innerHeight;
+
+    // 只要任一滚动条距离底部小于 600px，立即触发加载下一批
+    if (mainRemain <= 600 || docRemain <= 600) {
+      loadItems(false);
+    }
+  };
+
+  const bindScrollEvents = () => {
+    const mainEl = document.querySelector("main");
+    if (mainEl) {
+      mainEl.addEventListener("scroll", checkAndLoadMore, { passive: true });
+    }
+    window.addEventListener("scroll", checkAndLoadMore, { passive: true });
+    document.addEventListener("scroll", checkAndLoadMore, { passive: true });
+  };
+  bindScrollEvents();
+
+  // 事件监听
+  document.getElementById("search").addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(loadItems, 200);
+  });
+
+  document.getElementById("tag-bar").addEventListener("click", e => {
+    if (e.target.classList.contains("tag-pill")) {
+      document.querySelectorAll(".tag-pill").forEach(p => p.classList.remove("active"));
+      e.target.classList.add("active");
+      currentTag = e.target.dataset.tag || "";
+      loadItems();
+    }
+  });
+
+  // 鼠标滚轮在标签栏横向滚动
+  const tagBar = document.getElementById("tag-bar");
+  tagBar.addEventListener("wheel", (e) => {
+    if (e.deltaY !== 0) {
+      e.preventDefault();
+      tagBar.scrollLeft += e.deltaY;
+    }
+  }, { passive: false });
+
+  document.getElementById("btn-refresh").onclick = () => {
+    loadTags();
+    loadItems();
+  };
+
+  // 检查首屏是否未填满视口，若未填满自动连续拉取下一页
+  function checkFillViewport() {
+    setTimeout(() => {
+      const mainEl = document.querySelector("main");
+      if (mainEl && hasMoreItems && !isLoadingMore) {
+        if (mainEl.scrollHeight <= mainEl.clientHeight + 50) {
+          loadItems(false);
+        }
+      }
+    }, 150);
+  }
+  function updateProgressBar(current, total, name = "") {
+    const wrap = document.getElementById("import-progress-wrap");
+    wrap.style.display = "flex";
+    const percent = Math.min(100, Math.round((current / total) * 100));
+    document.getElementById("import-progress-percent").textContent = `${percent}% (${current}/${total})`;
+    document.getElementById("import-progress-fill").style.width = `${percent}%`;
+    if (name) {
+      document.getElementById("import-progress-title").textContent = `正在导入: ${name}`;
+    }
+  }
+
+  function hideProgressBar() {
+    setTimeout(() => {
+      const wrap = document.getElementById("import-progress-wrap");
+      if (wrap) wrap.style.display = "none";
+    }, 1500);
+  }
+
+  // 监听来自后端的 import-progress 事件
+  if (typeof window !== "undefined" && window.__TAURI__ && window.__TAURI__.event) {
+    window.__TAURI__.event.listen("import-progress", (ev) => {
+      const p = ev.payload;
+      if (p && p.total) {
+        updateProgressBar(p.current, p.total, p.current_name);
+      }
+    });
+  }
+
+  // 拖拽 HTML5 原生事件监听（支持系统任意图片拖入）
+  window.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    document.getElementById("drop-overlay").classList.add("active");
+  });
+  window.addEventListener("dragover", (e) => {
+    e.preventDefault();
+  });
+  window.addEventListener("dragleave", (e) => {
+    if (e.relatedTarget === null || e.clientX <= 0 || e.clientY <= 0) {
+      document.getElementById("drop-overlay").classList.remove("active");
+    }
+  });
+  window.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    document.getElementById("drop-overlay").classList.remove("active");
+    const dt = e.dataTransfer;
+    if (!dt || !dt.files || !dt.files.length) return;
+
+    const files = Array.from(dt.files);
+    showToast(`收到 ${files.length} 个拖入文件，正在上传...`);
+    updateProgressBar(0, files.length, "开始上传...");
+
+    const base = serverConfig.server_url.replace(/\/+$/, "");
+    let okCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      updateProgressBar(i + 1, files.length, f.name);
+      const fd = new FormData();
+      fd.append("file", f);
+      fd.append("source_platform", "drag-drop");
+      fd.append("tags", "拖拽,导入");
+
+      try {
+        const res = await fetch(`${base}/api/items`, {
+          method: "POST",
+          headers: {
+            "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+          },
+          body: fd
+        });
+        if (res.ok || res.status === 409) okCount++;
+        else failCount++;
+      } catch (err) {
+        failCount++;
+      }
+    }
+
+    hideProgressBar();
+    showToast(`拖拽导入完成：成功/已存在 ${okCount} 张，失败 ${failCount} 个`, null, 3000);
+    loadTags();
+    loadItems();
+  });
+
+  // --- 导入逻辑 ---
+  async function loadDetectedPlatforms() {
+    const listEl = document.getElementById("detected-platforms-list");
+    listEl.innerHTML = '<div style="font-size:11px; color:#8e94a5;">正在检测本地 QQ / 微信 / 企业微信...</div>';
+    try {
+      const items = await invoke("get_detected_platforms");
+      if (!items || !items.length) {
+        listEl.innerHTML = '<div style="font-size:11px; color:#8e94a5;">未自动检测到本地常用缓存路径，可通过上方手动选文件导入。</div>';
+        return;
+      }
+      listEl.innerHTML = "";
+      items.forEach(it => {
+        const row = document.createElement("div");
+        row.style.cssText = "background:#232734; border:1px solid #323646; border-radius:6px; padding:8px 10px; display:flex; justify-content:space-between; align-items:center;";
+        row.innerHTML = `
+          <div style="display:flex; flex-direction:column; overflow:hidden; margin-right:8px;">
+            <span style="font-size:11px; font-weight:600; color:#cbd5e1; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${it.name}</span>
+            <span style="font-size:10px; color:#6b7280; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${it.count} 个候选文件</span>
+          </div>
+          <button class="btn-import-run" style="background:#2b2f3d; border:1px solid #3d4254; color:#fff; font-size:11px; padding:4px 10px; border-radius:4px; cursor:pointer; white-space:nowrap;">一键导入</button>
+        `;
+        row.querySelector(".btn-import-run").onclick = async (e) => {
+          const btn = e.target;
+          btn.disabled = true;
+          btn.textContent = "导入中...";
+          const statusBox = document.getElementById("import-status-box");
+          statusBox.textContent = `正在扫描并上传 ${it.name}...`;
+          try {
+            updateProgressBar(0, it.count, it.name);
+            const res = await invoke("run_platform_import", { dirPath: it.path, platform: it.id });
+            statusBox.textContent = res.message;
+            showToast("导入成功！");
+            loadTags();
+            loadItems();
+          } catch (err) {
+            statusBox.textContent = "导入失败: " + err;
+            showToast("导入失败: " + err);
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "一键导入";
+            hideProgressBar();
+          }
+        };
+        listEl.appendChild(row);
+      });
+    } catch (e) {
+      listEl.innerHTML = `<div style="font-size:11px; color:#e53e3e;">检测失败: ${e}</div>`;
+    }
+  }
+
+  // 绑定微信一键内存解密导出
+  document.getElementById("btn-run-wx-decrypt").onclick = async () => {
+    const btn = document.getElementById("btn-run-wx-decrypt");
+    btn.disabled = true;
+    btn.textContent = "解密中...";
+    const statusBox = document.getElementById("import-status-box");
+    statusBox.textContent = "正在扫描微信进程内存提取解密密钥...";
+    updateProgressBar(0, 100, "扫描内存提取密钥...");
+
+    try {
+      const res = await invoke("run_wechat_decrypt_export");
+      statusBox.textContent = res.message;
+      showToast(res.message, null, 3500);
+      loadTags();
+      loadItems();
+    } catch (err) {
+      statusBox.textContent = "微信解密失败: " + err;
+      showToast("微信解密失败: " + err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "解密导入";
+      hideProgressBar();
+    }
+  };
+
+  document.getElementById("btn-import-open").onclick = () => {
+    document.getElementById("import-modal").style.display = "flex";
+    loadDetectedPlatforms();
+  };
+  document.getElementById("btn-close-import").onclick = () => {
+    document.getElementById("import-modal").style.display = "none";
+  };
+  document.getElementById("btn-rescan-platforms").onclick = loadDetectedPlatforms;
+
+  document.getElementById("btn-pick-files").onclick = async () => {
+    const btn = document.getElementById("btn-pick-files");
+    btn.disabled = true;
+    btn.textContent = "正在上传...";
+    const statusBox = document.getElementById("import-status-box");
+    statusBox.textContent = "正在处理选中的本地图片...";
+    try {
+      const res = await invoke("pick_and_import_local_files");
+      statusBox.textContent = res.message;
+      showToast("本地导入完成！");
+      loadTags();
+      loadItems();
+    } catch (err) {
+      if (err !== "未选择任何文件") {
+        statusBox.textContent = "导入失败: " + err;
+        showToast("导入失败: " + err);
+      } else {
+        statusBox.textContent = "";
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "选择并上传本地图片";
+      hideProgressBar();
+    }
+  };
+
+  async function openSettings() {
+    document.getElementById("cfg-server-url").value = serverConfig.server_url || "";
+    document.getElementById("cfg-token").value = serverConfig.token || "";
+    document.getElementById("cfg-hotkey").value = serverConfig.hotkey || "Ctrl+Alt+E";
+    const modal = document.getElementById("settings-modal");
+    modal.style.display = "flex";
+
+    // 尝试拉取服务端当前存储配置
+    const tag = document.getElementById("storage-status-tag");
+    tag.textContent = "查询中...";
+    try {
+      const st = await apiFetch("/api/config/storage");
+      tag.textContent = st.backend === "s3" ? "S3 / R2 模式" : "本地文件模式";
+      if (st.backend === "s3") {
+        document.getElementById("radio-storage-s3").checked = true;
+        document.getElementById("storage-local-pane").style.display = "none";
+        document.getElementById("storage-s3-pane").style.display = "flex";
+      } else {
+        document.getElementById("radio-storage-local").checked = true;
+        document.getElementById("storage-local-pane").style.display = "flex";
+        document.getElementById("storage-s3-pane").style.display = "none";
+      }
+      document.getElementById("storage-local-dir").value = st.data_dir || "data";
+      if (st.s3) {
+        document.getElementById("s3-endpoint").value = st.s3.endpoint || "";
+        document.getElementById("s3-bucket").value = st.s3.bucket || "";
+        document.getElementById("s3-region").value = st.s3.region || "auto";
+        document.getElementById("s3-access-key").value = st.s3.access_key || "";
+        document.getElementById("s3-secret-key").value = st.s3.secret_key || "";
+        document.getElementById("s3-public-base").value = st.s3.public_base || "";
+      }
+    } catch (e) {
+      tag.textContent = "服务端不可达";
+    }
+
+    // 尝试拉取服务端当前 AI 配置
+    try {
+      const ai = await apiFetch("/api/config/ai");
+      document.getElementById("ai-enabled").checked = !!ai.enabled;
+      document.getElementById("ai-base-url").value = ai.base_url || "http://127.0.0.1:7861/antigravity/v1";
+      document.getElementById("ai-api-key").value = ai.api_key || "";
+      document.getElementById("ai-model").value = ai.model || "gemini-3.8-flash-medium";
+      document.getElementById("ai-concurrency").value = ai.max_concurrent || 3;
+      const cats = ai.categories && ai.categories.length > 0 ? ai.categories : [
+        "沙雕搞笑", "可爱萌系", "阴阳吐槽", "无语尴尬", "开心点赞", "悲伤emo", "愤怒暴躁", "问号疑惑"
+      ];
+      document.getElementById("ai-categories").value = cats.join(", ");
+    } catch (e) {
+      console.warn("拉取 AI 配置失败:", e);
+    }
+  }
+
+  // 存储模式切换事件
+  document.getElementById("radio-storage-local").onchange = () => {
+    document.getElementById("storage-local-pane").style.display = "flex";
+    document.getElementById("storage-s3-pane").style.display = "none";
+  };
+  document.getElementById("radio-storage-s3").onchange = () => {
+    document.getElementById("storage-local-pane").style.display = "none";
+    document.getElementById("storage-s3-pane").style.display = "flex";
+  };
+
+  
+  const webInput = document.getElementById("web-file-input");
+  webInput.onchange = async () => {
+    const files = Array.from(webInput.files || []);
+    if (!files.length) return;
+    closeImportModal();
+    showToast("正在导入 " + files.length + " 个表情...");
+    updateProgressBar(0, files.length, files[0].name);
+    let success = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      updateProgressBar(i + 1, files.length, file.name);
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("source_platform", "web");
+      fd.append("tags", "web,导入");
+      try {
+        const base = serverConfig.server_url.replace(/\/+$/, "");
+        await fetch(base + "/api/items", {
+          method: "POST",
+          headers: serverConfig.token ? { "Authorization": "Bearer " + serverConfig.token } : {},
+          body: fd
+        });
+        success++;
+      } catch (e) {
+        console.warn("上传失败:", e);
+      }
+    }
+    hideProgressBar();
+    showToast("成功导入 " + success + " 张表情！");
+    loadTags();
+    loadItems();
+  };
+
+  const pickBtn = document.getElementById("btn-pick-files");
+  if (pickBtn) {
+    pickBtn.onclick = async () => {
+      if (isTauri) {
+        // Tauri 环境调用桌面端选图
+        await invoke("pick_and_import_local_files");
+      } else {
+        const input = document.getElementById("web-file-input");
+        if (input) input.click();
+      }
+    };
+  }
+
+  // 挂载到全局方便 Rust 原生直接可靠调用
+  window.__openSettingsModal = openSettings;
+
+  function closeSettings() {
+    document.getElementById("settings-modal").style.display = "none";
+  }
+
+  document.getElementById("btn-settings-open").onclick = openSettings;
+  document.getElementById("btn-close-settings").onclick = closeSettings;
+  document.getElementById("btn-cancel-settings").onclick = closeSettings;
+
+  document.getElementById("btn-save-settings").onclick = async () => {
+    const newCfg = {
+      server_url: document.getElementById("cfg-server-url").value.trim(),
+      token: document.getElementById("cfg-token").value.trim(),
+      hotkey: document.getElementById("cfg-hotkey").value.trim() || "Ctrl+Alt+E"
+    };
+
+    // 1. 保存客户端本地配置 (URL, Token, 热键)
+    try {
+      await invoke("save_desktop_config", { cfg: newCfg });
+      serverConfig = newCfg;
+    } catch (err) {
+      showToast("保存客户端配置失败: " + err);
+      return;
+    }
+
+    // 2. 将服务端存储方式同步提交给服务端生效
+    const isS3 = document.getElementById("radio-storage-s3").checked;
+    const storagePayload = {
+      backend: isS3 ? "s3" : "local",
+      data_dir: document.getElementById("storage-local-dir").value.trim() || "data",
+      s3: {
+        endpoint: document.getElementById("s3-endpoint").value.trim(),
+        bucket: document.getElementById("s3-bucket").value.trim(),
+        region: document.getElementById("s3-region").value.trim() || "auto",
+        access_key: document.getElementById("s3-access-key").value.trim(),
+        secret_key: document.getElementById("s3-secret-key").value.trim(),
+        public_base: document.getElementById("s3-public-base").value.trim(),
+        path_style: false
+      }
+    };
+
+    try {
+      const base = serverConfig.server_url.replace(/\/+$/, "");
+      const res = await fetch(`${base}/api/config/storage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+        },
+        body: JSON.stringify(storagePayload)
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || "HTTP " + res.status);
+      }
+      closeSettings();
+      showToast("客户端与服务端配置已全部生效！");
+      loadTags();
+      loadItems();
+    } catch (err) {
+      showToast("存储模式应用失败: " + err);
+    }
+
+    // 3. 将 AI 视觉打标配置同步提交给服务端生效
+    const rawCats = document.getElementById("ai-categories").value
+      .split(/[,，/、\s]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    const aiPayload = {
+      enabled: document.getElementById("ai-enabled").checked,
+      base_url: document.getElementById("ai-base-url").value.trim(),
+      api_key: document.getElementById("ai-api-key").value.trim(),
+      model: document.getElementById("ai-model").value.trim() || "gemini-3.8-flash-medium",
+      max_concurrent: parseInt(document.getElementById("ai-concurrency").value, 10) || 3,
+      categories: rawCats.length > 0 ? rawCats : [
+        "沙雕搞笑", "可爱萌系", "阴阳吐槽", "无语尴尬", "开心点赞", "悲伤emo", "愤怒暴躁", "问号疑惑"
+      ],
+      timeout_sec: 120
+    };
+
+    try {
+      const base = serverConfig.server_url.replace(/\/+$/, "");
+      await fetch(`${base}/api/config/ai`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": serverConfig.token ? "Bearer " + serverConfig.token : ""
+        },
+        body: JSON.stringify(aiPayload)
+      });
+    } catch (err) {
+      console.warn("保存 AI 配置失败:", err);
+    }
+  };
+
+  document.getElementById("btn-test-ai").onclick = async () => {
+    const btn = document.getElementById("btn-test-ai");
+    btn.textContent = "正在测试...";
+    btn.disabled = true;
+    try {
+      const payload = {
+        base_url: document.getElementById("ai-base-url").value.trim(),
+        api_key: document.getElementById("ai-api-key").value.trim(),
+        model: document.getElementById("ai-model").value.trim() || "gemini-3.8-flash-medium"
+      };
+      const res = await apiFetch("/api/ai/test", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      showToast(res.message || "模型连接成功！");
+    } catch (e) {
+      showToast("连接失败: " + e.message);
+    } finally {
+      btn.textContent = "测试模型连接";
+      btn.disabled = false;
+    }
+  };
+
+  document.getElementById("btn-batch-tag").onclick = async () => {
+    const btn = document.getElementById("btn-batch-tag");
+    btn.textContent = "正在提交...";
+    btn.disabled = true;
+    try {
+      const res = await apiFetch("/api/ai/batch-tag?clean=1", { method: "POST" });
+      showToast(res.message || "已清空旧标签并提交分析任务");
+      loadTags();
+      loadItems();
+    } catch (e) {
+      showToast("提交失败: " + e.message);
+    } finally {
+      btn.textContent = "清空并按大类重打";
+      btn.disabled = false;
+    }
+  };
+
+  // 监听来自托盘右键菜单的“打开设置”事件
+  if (typeof window !== "undefined" && window.__TAURI__ && window.__TAURI__.event) {
+    window.__TAURI__.event.listen("open-settings", () => {
+      openSettings();
+    });
+  }
+
+  document.getElementById("btn-hide").onclick = () => {
+    invoke("hide_window");
+  };
+
+  // 监听键盘按键：Esc 退出/收起浮窗
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      invoke("hide_window");
+    }
+  });
+
+  const header = document.querySelector("header");
+  header.addEventListener("mousedown", (e) => {
+    // 只有点在 header 顶栏空白处或标题上时才触发拖动，不影响搜索框和按钮点击
+    if (e.target.id === "search" || e.target.closest("button") || e.target.closest(".search-wrap")) {
+      return;
+    }
+    invoke("start_drag");
+  });
+
+  // 初始化
+  const initApp = async () => {
+    // 1. 同步首先提取 URL 中的 Token，确保第一时间可用
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const hashSp = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const qToken = sp.get("token") || hashSp.get("token");
+      if (qToken) {
+        serverConfig.token = qToken;
+        try { localStorage.setItem("mojinest_token", qToken); } catch (_) {}
+      } else {
+        try {
+          const saved = localStorage.getItem("mojinest_token");
+          if (saved) serverConfig.token = saved;
+        } catch (_) {}
+      }
+    }
+
+    await loadConfig();
+    try {
+      await loadTags();
+    } catch (e) {
+      console.warn("loadTags failed:", e);
+    }
+    try {
+      await loadItems(true);
+    } catch (e) {
+      console.warn("loadItems failed:", e);
+    }
+  };
+
+  initApp();
 </script>
 </body>
 </html>
