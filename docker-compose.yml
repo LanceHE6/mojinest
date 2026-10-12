@@ -4,8 +4,7 @@ services:
     image: mojinest:latest
     container_name: mojinest
     restart: unless-stopped
-    ports:
-      - "18642:18642"
+    network_mode: host
     volumes:
       - ./data:/data
       - ./config.docker.json:/app/config.json
